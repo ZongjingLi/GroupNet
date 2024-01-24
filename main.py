@@ -6,34 +6,18 @@
  # @ Description: This file is distributed under the MIT license.
 '''
 
-from mvcl.model import MetaNet
+from mvcl.model import MetaVisualLearner
 from mvcl.train import train
+from mvcl.config import config
 
 from rinarak.domain import Domain, load_domain_string
 
+domain_name = "demo"
 domain_parser = Domain("mvcl/base.grammar")
-meta_domain_str = f"""
-(domain meta_demo)
-(:type
-    object - vector[float,100]
-    position - vector[float,2]
-    color - vector[float, 64]
-    category
-)
-(:predicate
-    color ?x-object -> vector[float,64]
-    is-red ?x-object -> boolean
-    is-blue ?x-object -> boolean
-    is-ship ?x-object -> boolean
-    is-house ?x-object -> boolean
-)
-(:derived
-    is-green ?x-color expr: (??f ?x)
-)
-(:constraint
-    (color: is-red is-blue)
-    (category: is-ship is-house)
-)
-"""
+meta_domain_str = ""
+with open(f"domains/{domain_name}_domain.txt","r") as domain:
+    for line in domain: meta_domain_str += line
 domain = load_domain_string(meta_domain_str, domain_parser)
 domain.print_summary()
+
+model = MetaVisualLearner(domain, config)

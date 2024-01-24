@@ -44,9 +44,6 @@ class MetaVisualLearner(nn.Module):
         self.resolution = config.resolution
         self.perception = model_dict[config.perception_model_name](config)
 
-        # [Physics Model]
-        self.evolutor = model_dict[config.physics_model_name](config)
-
         # [Central Knowledge Executor]
         self.central_executor = CentralExecutor(domain, config)
 

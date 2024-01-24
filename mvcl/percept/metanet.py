@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from .propagation import GraphPropagation
 from .competition import Competition
 
-from .backbones import RDB_Conv
+from .backbones import RDN
 
 from rinarak.utils.tensor import gather_tensor, stats_summary, weighted_softmax, logit
 from torch_sparse import SparseTensor

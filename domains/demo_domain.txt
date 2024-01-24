@@ -1,0 +1,21 @@
+(domain meta_demo)
+(:type
+    object - vector[float,100]
+    position - vector[float,2]
+    color - vector[float, 64]
+    category
+)
+(:predicate
+    color ?x-object -> vector[float,64]
+    is-red ?x-object -> boolean
+    is-blue ?x-object -> boolean
+    is-ship ?x-object -> boolean
+    is-house ?x-object -> boolean
+)
+(:derived
+    is-green ?x-color expr: (??f ?x)
+)
+(:constraint
+    (color: is-red is-blue)
+    (category: is-ship is-house)
+)
