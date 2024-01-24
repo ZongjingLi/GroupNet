@@ -3,7 +3,7 @@ import torch.nn as nn
 
 import argparse
 
-from mvcl.program import *
+from rinarak.program import *
 from karanir.utils import logit
 
 parser = argparse.ArgumentParser()
