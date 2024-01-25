@@ -32,22 +32,25 @@ def expand_like(source, target):
     source = source.repeat(expand_mults)
     return source
 
+
 # [Return all the objects in the Scene]
 operator_scene = Primitive(
     "scene",
     arrow(Stream, ObjectSet),
-    lambda x: {"end": x["end"], **x}
+    lambda x: {**x,"end": x["end"]}
 )
 
 # [Existianial quantification, exists, forall]
 operator_exists = Primitive(
     "exists",
     arrow(ObjectSet, Boolean),
-    lambda x:{"end":torch.max(x["end"], dim = -1).values, "model":x["model"]})
+    lambda x:{**x,
+    "end":torch.max(x["end"], dim = -1).values})
 operator_forall = Primitive(
     "forall",
     arrow(ObjectSet, Boolean),
-    lambda x:{"end":torch.min(x["end"], dim = -1).values, "model":x["model"]})
+    lambda x:{**x,
+    "end":torch.min(x["end"], dim = -1).values})
 
 # [Boolean operators]
 operator_and = Primitive(
@@ -68,8 +71,9 @@ operator_not = Primitive(
 # [Neuro-Sybmolic quantification]
 operator_pr = Primitive("Pr", arrow(ObjectSet,Concept,ObjectSet),
     lambda x: lambda y:
-    {"end":x["model"].entailment(x["features"],
-    x["model"].get_concept_embedding(y)), "model":x["model"]})
+    {**x,
+    "end":x["model"].entailment(x["features"],
+    x["model"].get_concept_embedding(y))})
 
 def relate(x,y,z):
     mask = x["executor"].entailment(x["relations"],x["executor"].get_concept_embedding(z))
@@ -84,19 +88,19 @@ operator_relate = Primitive(
 
 # [Set operations] Intersect and Union operations
 operator_intersect = Primitive(
-    "&",
+    "intersect",
     arrow(ObjectSet, ObjectSet, ObjectSet),
-    lambda x: lambda y: {"end":torch.min(x, y),"model": x["model"]})
+    lambda x: lambda y: {**x,"end":torch.min(x["end"], y["end"])})
 
 operator_union = Primitive(
-    "|",
+    "union",
     arrow(ObjectSet, ObjectSet, ObjectSet),
-    lambda x: lambda y: {"end":torch.min(x, y),"model": x["model"]},)
+    lambda x: lambda y: {**x,"end":torch.min(x["end"], y["end"])},)
 
 operator_filter = Primitive(
     "filter",
     arrow(ObjectSet, ObjectSet, ObjectSet),
-    lambda x: lambda y: {"end": torch.min(x["end"], y["end"]), **x})
+    lambda x: lambda y: {**x, "end": torch.min(x["end"], y["end"])})
 
 def visual_group_segment(x):
     # input a mask of feature map, and use visual grouping for segmentation.
@@ -110,7 +114,11 @@ operator_filter_part = Primitive(
 operator_expand = Primitive(
     "expand",
     arrow(ObjectSet,PrimitiveSet),
-    lambda x: {"end": torch.min(x["masks"],expand_like(x["end"], x["masks"])), "model":x["model"]}
+    lambda x: {
+        **x,
+        "end": torch.min(x["masks"],expand_like(x["end"], x["masks"])),
+        "features": expat(x["features"], idx = 0, num = x["masks"].shape[0]),
+        "model":x["model"]}
 )
 
 # [Count based questions the number of elements in the set]

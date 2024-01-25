@@ -50,8 +50,11 @@ class MetaVisualLearner(nn.Module):
         # [Neuro Implementations]
         self.implementations = nn.ModuleDict()
     
-    def entailment(self,c1, c2):
-        return 999.
+    def get_concept_embedding(self, name):return self.central_executor.get_concept_embedding(name)
+    
+    def entailment(self,c1, c2): 
+        entail_mask = self.central_executor.entailment(c1,c2)
+        return entail_mask
     
     def segment(self, boolean_map, base_feature_map):
         scores = 1
