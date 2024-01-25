@@ -588,7 +588,6 @@ def masks_from_phenotypes(plateau, phenotypes, normalize=True):
 
 
 
-
 def object_id_hash(objects, dtype_out=torch.int32, val=256, channels_last=False):
     '''
     objects: [...,C]

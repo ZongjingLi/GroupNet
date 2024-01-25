@@ -49,19 +49,20 @@ class MetaVisualLearner(nn.Module):
 
         # [Neuro Implementations]
         self.implementations = nn.ModuleDict()
-
+    
+    def entailment(self,c1, c2):
+        return 999.
+    
+    def segment(self, boolean_map, base_feature_map):
+        scores = 1
+        masks = 1
+        return scores, masks
 
     def print_summary(self):
         summary_string = f"""
 [Perception Model]
 perception:{self.config.perception_model_name}  ;; the name of the perception model
 resolution:{self.resolution}  ;; working resolution of the object centric perception
-
-[Physics Model]
-evolutor: {self.config.physics_model_name}  ;; the name of the evolution model
-state_dim: {self.config.state_dim}  ;; dynamic state dim for each particle (position and momentum)
-attr_dim: {self.config.attr_dim}    ;; attribute dim for each particle state
-relation_dim: {self.config.relation_dim}    ;; the number of relations between objects
 
 [Central Knowlege Base]
 concept_type: {self.config.concept_type}    ;; the type of the concept structure

@@ -121,7 +121,7 @@ class MetaNet(nn.Module):
         self.ks_map = nn.Linear(latent_dim, kq_dim)
         self.qs_map = nn.Linear(latent_dim, kq_dim)
  
-    def forward(self, ims, target_masks = None, lazy = True, cue = None):
+    def forward(self, ims, target_masks = None, lazy = True):
         """
         Args:
             ims: the image batch send to calculate the
@@ -131,7 +131,6 @@ class MetaNet(nn.Module):
             connections:
         """
         device = ims.device
-        assert cue is not None, "default visual cue is not provided here."
         if not lazy:assert len(ims.shape) == 4,"need to process with batch"
         elif len(ims.shape) == 3: ims = ims.unsqueeze(0)
         outputs = {}
