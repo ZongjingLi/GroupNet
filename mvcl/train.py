@@ -15,8 +15,13 @@ from torch.utils.data import DataLoader
 from rinarak.logger import get_logger,set_output_file
 from rinarak.utils.tensor import gather_loss, logit
 from rinarak.program import Program
+from rinarak.utils.tensor import freeze
+
+from mvcl.primitives import Primitive
+
 from datasets.sprites_base_dataset import SpritesBaseDataset
 from datasets.sprites_meta_dataset import SpritesMetaDataset
+
 
 dataset_map = {
     "sprites_base": SpritesBaseDataset,
@@ -34,6 +39,11 @@ def train(model, config, args):
     train_loader = DataLoader(train_dataset, batch_size = args.batch_size, shuffle = True)
     # [log the model and mount on device]
     model = model.to(config.device)
+
+    # [freeze parameters in the model] [optional]
+    freeze(model.perception)
+    freeze(model.central_executor)
+
     if args.optimizer == "Adam":
         optimizer = torch.optim.Adam(model.parameters(), lr = args.lr)
     if args.optimizer == "RMSprop":
@@ -54,19 +64,19 @@ def train(model, config, args):
             all_masks = outputs["masks"]
             alives = outputs["alive"]
 
-            language_loss = 0.0
+            language_loss = 0.0 # intialize the knowledge training
             questions = sample["questions"]
             programs = sample["programs"]
             answers = sample["answers"]
             backbone_features = outputs["features"]
-            context = {
+    
+            for b in range(len(programs[0])):
+                context = {
                 "end":logit(alives[b].squeeze(-1)),
                 "masks": logit(all_masks[b].permute(2,0,1).flatten(start_dim = 1, end_dim = 1)),
                 "features": backbone_features[b].flatten(start_dim = 0, end_dim = 1),
                 "model": model
-            }
-
-            for b in range(len(programs[0])):
+                }
                 for program_idx in range(len(programs)):
                     question = questions[program_idx][b]
                     program = programs[program_idx][b]
@@ -81,7 +91,7 @@ def train(model, config, args):
                     if answer in numbers:
                             language_loss += (output["end"]-int(answer))**2
 
-            langauge_loss /= (b+1) * (program_idx + 1)
+            language_loss /= len(programs[0]) * len(programs)
 
             # calculate the overall loss
             loss = percept_loss + language_loss

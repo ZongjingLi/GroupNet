@@ -6,16 +6,21 @@
     category
 )
 (:predicate
-    color ?x-object -> vector[float,64]
-    is-red ?x-object -> boolean
-    is-blue ?x-object -> boolean
-    is-ship ?x-object -> boolean
-    is-house ?x-object -> boolean
+    color ?x-object -> vector[float,100]
+    shape ?x-object -> vector[float,100]
+
+    red ?x-color -> boolean
+    blue ?x-color -> boolean
+    green ?x-color -> boolean
+
+    square ?x-shape -> boolean
+    circle ?x-shape -> boolean
+    diamond ?x-shape -> boolean
 )
 (:derived
-    is-green ?x-color expr: (??f ?x)
+    is-good ?x-color expr: (??f ?x)
 )
 (:constraint
-    (color: is-red is-blue)
-    (category: is-ship is-house)
+    (color: red blue green)
+    (shape: square circle diamond)
 )
