@@ -1,0 +1,56 @@
+is there any object with color of blue
+
+        (exists
+            (intersect
+                (exists
+                    (Pr (color (expand (scene $0)) ) blue) 
+                )
+                (scene $0)
+            )
+        )
+        
+no
+is there any object with shape of square
+
+        (exists
+            (intersect
+                (exists
+                    (Pr (shape (expand (scene $0)) ) square) 
+                )
+                (scene $0)
+            )
+        )
+        
+yes
+is there any object with color of red and with shape of diamond
+
+        (exists
+            (intersect
+                (exists
+                    (Pr (color (expand (scene $0)) ) red) 
+                )
+                (forall
+                    (Pr (shape (expand (scene $0)) ) diamond)
+                )
+            )
+        )
+        
+no
+how many objects with color of red are there?
+
+        (count
+                (exists
+                    (Pr (color (expand (scene $0)) ) red) 
+                )
+        )
+        
+0
+how many objects with shape of circle are there?
+
+        (count
+                (exists
+                    (Pr (shape (expand (scene $0)) ) circle) 
+                )
+        )
+        
+0

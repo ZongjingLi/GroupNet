@@ -125,11 +125,11 @@ operator_expand = Primitive(
 operator_count = Primitive(
     "count",
     arrow(ObjectSet, Integer),
-    lambda x:{"end":torch.sum(x["end"].sigmoid()), **x})
+    lambda x:{**x,"end":torch.sum(x["end"].sigmoid())})
 
 operator_equal = Primitive(
     "equal",arrow(treal, treal, Boolean),
-    lambda x: lambda y:  {"end":8 * (.5 - (x - y).abs()), **x})
+    lambda x: lambda y:  {**x,"end":8 * (.5 - (x - y).abs())})
 
 if __name__ == "__main__":
     context = {
@@ -146,8 +146,8 @@ if __name__ == "__main__":
         F_i: NxMxD
     """
 
-    p = Program.parse("(count (scene $0))")
-    p = Program.parse("( && (not(exists (scene $0))) (exists (scene $0)) )")
+    #p = Program.parse("(count (scene $0))")
+    #p = Program.parse("( && (not(exists (scene $0))) (exists (scene $0)) )")
     p = Program.parse("(filter(forall (expand (scene $0))) (scene $0))")
 
     o = p.evaluate({0:context})

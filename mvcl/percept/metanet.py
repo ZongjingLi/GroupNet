@@ -197,6 +197,7 @@ class MetaNet(nn.Module):
         outputs["masks"] = masks
         outputs["alive"] = alive
         outputs["all_logits"] = all_logits
+        outputs["features"] = conv_features
 
         del all_sample_inds
         return outputs

@@ -13,7 +13,8 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
 from rinarak.logger import get_logger,set_output_file
-from rinarak.utils.tensor import gather_loss
+from rinarak.utils.tensor import gather_loss, logit
+from rinarak.program import Program
 from datasets.sprites_base_dataset import SpritesBaseDataset
 from datasets.sprites_meta_dataset import SpritesMetaDataset
 
@@ -23,6 +24,7 @@ dataset_map = {
 }
 
 def train(model, config, args):
+    numbers = [str(i) for i in range(10)]
     set_output_file(f"logs/{args.domain_name}_expr_train.txt")
     train_logger = get_logger("expr_train")
     # [prepare to log the dataset]
@@ -48,7 +50,41 @@ def train(model, config, args):
             ims = sample["img"]
             masks = sample["masks"]
             outputs = model.perception(ims, masks.long().unsqueeze(1))
-            loss = gather_loss(outputs)["loss"]
+            percept_loss = gather_loss(outputs)["loss"] # gather loss in the perception module
+            all_masks = outputs["masks"]
+            alives = outputs["alive"]
+
+            language_loss = 0.0
+            questions = sample["questions"]
+            programs = sample["programs"]
+            answers = sample["answers"]
+            backbone_features = outputs["features"]
+            context = {
+                "end":logit(alives[b].squeeze(-1)),
+                "masks": logit(all_masks[b].permute(2,0,1).flatten(start_dim = 1, end_dim = 1)),
+                "features": backbone_features[b].flatten(start_dim = 0, end_dim = 1),
+                "model": model
+            }
+
+            for b in range(len(programs[0])):
+                for program_idx in range(len(programs)):
+                    question = questions[program_idx][b]
+                    program = programs[program_idx][b]
+                    answer = answers[program_idx][b]
+                    p = Program.parse(program)
+                    output = p.evaluate({0:context})
+                    if answer in ["yes", "no"]:
+                        if answer == "yes":
+                            language_loss += -torch.log(output["end"].sigmoid())
+                        if answer == "no":
+                            language_loss += -torch.log(1 - output["end"].sigmoid())
+                    if answer in numbers:
+                            language_loss += (output["end"]-int(answer))**2
+
+            langauge_loss /= (b+1) * (program_idx + 1)
+
+            # calculate the overall loss
+            loss = percept_loss + language_loss
 
             # [start the optimization]
             optimizer.zero_grad()

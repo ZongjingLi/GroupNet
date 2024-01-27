@@ -50,6 +50,11 @@ class MetaVisualLearner(nn.Module):
         # [Neuro Implementations]
         self.implementations = nn.ModuleDict()
     
+    def get_mapper(self,name):
+        for map_name in self.implementations:
+            if map_name == name: return self.implementations[map_name]
+        assert False, f"there is no such mapper {name}"
+    
     def get_concept_embedding(self, name):return self.central_executor.get_concept_embedding(name)
     
     def entailment(self,c1, c2): 

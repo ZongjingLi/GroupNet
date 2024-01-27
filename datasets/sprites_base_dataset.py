@@ -20,6 +20,7 @@ except:
             if not img.shape[1] in [1,3,4]: return img.permute(0,3,1,2)
         if len(img.shape) == 3:
             if not img.shape[0] in [1,3,4]: return img.permute(2,0,1)
+from rinarak.utils.os import load_json, save_json
 
 class SpritesBaseDataset(Dataset):
     def __init__(self, split = "train", data_dir = "/Users/melkor/Documents/datasets"):
@@ -28,6 +29,7 @@ class SpritesBaseDataset(Dataset):
         self.data_dir = data_dir
         self.im_path = data_dir + "/sprites_env/base/{}/{}.png"
         self.mask_path = data_dir + "/sprites_env/base/{}/{}.npy"
+        self.annotation_path = data_dir + "/sprites_env/base/{}/{}.json"
     
     def __len__(self): return 500
 
@@ -35,15 +37,45 @@ class SpritesBaseDataset(Dataset):
         data = {}
         img = torch.tensor(plt.imread(self.im_path.format(self.split,idx)))
         masks = np.load(self.mask_path.format(self.split,idx))
+        annotations = load_json(self.annotation_path.format(self.split, idx))
         data["img"] = normal_img(img)
         data["masks"] = masks
+
+        questions = annotations["questions"]
+        programs = annotations["programs"]
+        answers = annotations["answers"]
+        data["programs"] = programs
+        data["questions"] = questions
+        data["answers"] = answers
         return data
+
+exist_template = f"""
+    (exists
+        (Pr (color))
+    )
+"""
+
+compound_exist_forall_template = f"""
+    (exists
+        (intersect
+            (exists
+                (Pr (color (expand (scene $0)) ) {{}}) 
+            )
+            (forall
+                (Pr (shape (expand (scene $0)) ) {{}})
+            )
+        )
+    )
+"""
 
 def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", data_dir = "/Users/melkor/Documents/datasets"):
     max_num_objs = 3
     resolution = resolution
     im_path = data_dir + "/sprites_env/base/{}/{}.png"
     mask_path = data_dir + "/sprites_env/base/{}/{}"
+    values = {  "color": ["red","green","blue"],
+                "shape":["square","circle","diamond"]
+                }
     for scene_id in range(num_scenes):
         scene = {}
         num_objs = random.randint(1,max_num_objs) # include the interval ends
@@ -51,6 +83,7 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
         width, height = resolution
         canvas = np.zeros([width,height,3])
         masks = np.zeros([width, height])
+        scene_annotation = {"color":[],"shape":[]}
 
         for idx in range(num_objs):
             # choose the size of the sprite
@@ -63,10 +96,11 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
             
             # choose the color of the spirte
             color = random.randint(0,2)
+            scene_annotation["color"].append(values["color"][color])
             
             # render the sprite on the canvas and mask
             if shape == "circle":  # draw circle
-
+                scene_annotation["shape"].append("circle")
                 center_x = pos_x + scale // 2.0
                 center_y = pos_y + scale // 2.0
                 for x in range(height):
@@ -77,10 +111,12 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
                             canvas[x][y][color] = 1.0 - noise
                             masks[x,y] = 1 + idx
             elif shape == "square":  # draw square
+                scene_annotation["shape"].append("square")
                 noise = np.random.uniform(0.0,0.2)
                 canvas[pos_x:pos_x + scale, pos_y:pos_y + scale, color] = 1.0 - noise
                 masks[pos_x:pos_x + scale, pos_y:pos_y + scale] = 1 + idx
             else:  # draw square turned by 45 degrees
+                scene_annotation["shape"].append("diamond")
                 center_x = pos_x + scale // 2.0
                 center_y = pos_y + scale // 2.0
                 for x in range(height):
@@ -91,8 +127,81 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
                             masks[x][y] = idx + 1
             plt.imsave(im_path.format(split,scene_id),canvas)
             np.save(mask_path.format(split,scene_id),masks)
+        # generate language groundings for the sprites dataset.
+        language_annotations = {}
+        language_annotations["questions"] = []
+        language_annotations["answers"] = []
+        language_annotations["programs"] = []
+        # Type I: existential quantification quries.
+        program = f"""
+        (exists
+            (intersect
+                (exists
+                    (Pr ({{}} (expand (scene $0)) ) {{}}) 
+                )
+                (scene $0)
+            )
+        )
+        """
+        for key in values:
+            valid_values = values[key]
+            sample_value = np.random.choice(valid_values)
+            sample_program = program.format(key, sample_value)
+            answer = "yes" if sample_value in scene_annotation[key] else "no"
+            language = f"is there any object with {key} of {sample_value}"
+            language_annotations["questions"].append(language)
+            language_annotations["programs"].append(sample_program)
+            language_annotations["answers"].append(answer)
+        # Type II: compound extistenial quantification.
+        program = f"""
+        (exists
+            (intersect
+                (exists
+                    (Pr ({{}} (expand (scene $0)) ) {{}}) 
+                )
+                (forall
+                    (Pr ({{}} (expand (scene $0)) ) {{}})
+                )
+            )
+        )
+        """
+        for key1 in ["color"]:
+            sample_value1 = np.random.choice(values[key1])
+            for key2 in ["shape"]:
+                sample_value2 = np.random.choice(values[key2])
+
+                sample_program = program.format(key1, sample_value1, key2, sample_value2)
+                flag = sample_value1 in scene_annotation["color"] and sample_value2 in scene_annotation["shape"]
+                answer = "yes" if flag else "no"
+                language = f"is there any object with {key1} of {sample_value1} and with {key2} of {sample_value2}"
+                language_annotations["questions"].append(language)
+                language_annotations["programs"].append(sample_program)
+                language_annotations["answers"].append(answer)
+        # Type III: counting based quries.
+        query = "how many objects has {} components."
+        program = f"""
+        (count
+                (exists
+                    (Pr ({{}} (expand (scene $0)) ) {{}}) 
+                )
+        )
+        """
+        for key in values:
+            valid_values = values[key]
+            sample_value = np.random.choice(valid_values)
+            sample_program = program.format(key, sample_value)
+            answer = 0
+            for value in scene_annotation[key]:
+                if value == sample_value: answer += 1
+            language = f"how many objects with {key} of {sample_value} are there?"
+            language_annotations["questions"].append(language)
+            language_annotations["programs"].append(sample_program)
+            language_annotations["answers"].append(str(answer))
+        save_json(language_annotations,data_dir + "/sprites_env/base/{}/{}.json".format(split,scene_id))
     return 
-    
+
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
@@ -101,4 +210,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.command == "generate":
-        generate_sprites(600)
+        generate_sprites(1200, split = "train")
