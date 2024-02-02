@@ -1,4 +1,4 @@
-(domain meta_demo)
+(domain demo)
 (:type
     object - vector[float,100]
     position - vector[float,2]
@@ -12,15 +12,17 @@
     red ?x-color -> boolean
     blue ?x-color -> boolean
     green ?x-color -> boolean
+    not-any-color ?x-color -> boolean
 
     square ?x-shape -> boolean
     circle ?x-shape -> boolean
     diamond ?x-shape -> boolean
+    not-any-shape ?x-shape -> boolean
 )
 (:derived
     is-good ?x-color expr: (??f ?x)
 )
 (:constraint
-    (color: red blue green)
-    (shape: square circle diamond)
+    (color: red blue green not-any-color)
+    (shape: square circle diamond not-any-shape)
 )

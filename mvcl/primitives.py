@@ -72,8 +72,10 @@ operator_not = Primitive(
 operator_pr = Primitive("Pr", arrow(ObjectSet,Concept,ObjectSet),
     lambda x: lambda y:
     {**x,
-    "end":x["model"].entailment(x["features"],
-    x["model"].get_concept_embedding(y))})
+    "end":
+        x["model"].entailment(x["features"],
+        x["model"].get_concept_embedding(y)),    
+    })
 
 def relate(x,y,z):
     mask = x["executor"].entailment(x["relations"],x["executor"].get_concept_embedding(z))
@@ -95,12 +97,15 @@ operator_intersect = Primitive(
 operator_union = Primitive(
     "union",
     arrow(ObjectSet, ObjectSet, ObjectSet),
-    lambda x: lambda y: {**x,"end":torch.min(x["end"], y["end"])},)
+    #lambda x: lambda y:print(x["end"].shape,y["end"].shape)
+    lambda x: lambda y: {**x,"end":torch.max(x["end"], y["end"])},
+    )
 
 operator_filter = Primitive(
     "filter",
     arrow(ObjectSet, ObjectSet, ObjectSet),
     lambda x: lambda y: {**x, "end": torch.min(x["end"], y["end"])})
+
 
 def visual_group_segment(x):
     # input a mask of feature map, and use visual grouping for segmentation.

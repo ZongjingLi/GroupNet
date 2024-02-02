@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from .propagation import GraphPropagation
 from .competition import Competition
 
-from .backbones import RDN
+from .backbones import ResidualDenseNetwork, FeatureMapEncoder
 
 from rinarak.utils.tensor import gather_tensor, stats_summary, weighted_softmax, logit
 from torch_sparse import SparseTensor
@@ -99,9 +99,11 @@ class MetaNet(nn.Module):
 
         """general visual feature backbone, perfrom grid size convolution"""
         latent_dim = config.backbone_feature_dim
-        rdn_args = SimpleNamespace(G0=latent_dim  ,RDNkSize=3,n_colors=config.channel_dim,
+        rdn_args = SimpleNamespace(g0=latent_dim  ,RDNkSize=3,n_colors=config.channel_dim,
                                RDNconfig=(4,3,16),scale=[2],no_upsampling=True)
-        self.backbone = RDN(rdn_args)
+        self.backbone = ResidualDenseNetwork(latent_dim)
+        #FeatureMapEncoder(config.channel_dim, z_dim = latent_dim)
+        #RDN(rdn_args)
 
         """local indices plus long range indices"""
         supervision_level = 1

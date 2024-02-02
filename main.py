@@ -5,14 +5,18 @@
  # @ Modified time: 2024-01-24 18:24:56
  # @ Description: This file is distributed under the MIT license.
 '''
+from distutils.command.build import build
 from rinarak.domain import Domain, load_domain_string
 from rinarak.program import Primitive
+from rinarak.dklearn.nn.mlp import FCBlock
 
 from mvcl.model import MetaVisualLearner
 from mvcl.train import train, evaluate
 from mvcl.config import config, argparse
 from mvcl.primitives import *
+from mvcl.custom import build_custom
 import torch
+import torch.nn as nn
 
 dataset_dir = "/Users/melkor/Documents/datasets"
 
@@ -25,19 +29,20 @@ argparser.add_argument("--mode",                        default = "train")
 argparser.add_argument("--dataset_name",                default = "sprites_base")
 
 # [Training detail configurations]
-argparser.add_argument("--epochs",                      default = 100)
-argparser.add_argument("--batch_size",                  default = 2)
+argparser.add_argument("--epochs",                      default = 1000)
+argparser.add_argument("--batch_size",                  default = 5)
 argparser.add_argument("--optimizer",                   default = "Adam")
-argparser.add_argument("--lr",                          default = 1e-3)
+argparser.add_argument("--lr",                          default = 2e-4)
 
 # [Elaborated training details]
 argparser.add_argument("--freeze_perception",           default = False)
-argparser.add_argument("--freeze_knowledge",            default = False)
+argparser.add_argument("--freeze_knowledge",            default = True)
 
 # [Save checkpoints at dir...]
 argparser.add_argument("--ckpt_itrs",                   default = 100)
 argparser.add_argument("--ckpt_dir",                    default = "checkpoints")
-argparser.add_argument("--load_ckpt",                   default = False)
+argparser.add_argument("--load_ckpt_knowledge",         default = False)
+argparser.add_argument("--load_ckpt_percept",           default = False)
 
 args = argparser.parse_args()
 
@@ -48,26 +53,14 @@ with open(f"domains/{args.domain_name}_domain.txt","r") as domain:
     for line in domain: meta_domain_str += line
 domain = load_domain_string(meta_domain_str, domain_parser)
 
+
 # [Build the Model]
-args.load_ckpt = "checkpoints/KFT_backbone.pth"
+args.load_ckpt_percept = "checkpoints/KFT_percept_backup.pth"
 model = MetaVisualLearner(domain, config)
-import torch.nn as nn
-color_mapper = nn.Linear(132,100)
-shape_mapper = nn.Linear(132,100)
+model = build_custom(model, domain.domain_name)
 
-model.implementations["color"] = color_mapper
-model.implementations["shape"] = shape_mapper
-if args.load_ckpt: model.load_state_dict(torch.load(args.load_ckpt))
-
-model.load_state_dict(torch.load(args.load_ckpt))
-
-
-# [Pre-define some concept mapper]
-color = Primitive.GLOBALS["color"]
-color.value = lambda x: {**x, "features": x["model"].get_mapper("color")(x["features"])}
-shape = Primitive.GLOBALS["shape"]
-shape.value = lambda x: {**x, "features": x["model"].get_mapper("shape")(x["features"])}
-
+if args.load_ckpt_percept: model.perception.load_state_dict(torch.load(args.load_ckpt_percept))
+if args.load_ckpt_knowledge: model.knowledge.load_state_dict(torch.load(args.load_knowledge))
 
 if args.mode == "train":
     train(model, config, args)

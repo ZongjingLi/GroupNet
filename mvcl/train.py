@@ -22,6 +22,9 @@ from mvcl.primitives import Primitive
 from datasets.sprites_base_dataset import SpritesBaseDataset
 from datasets.sprites_meta_dataset import SpritesMetaDataset
 
+def unfreeze(module):
+    for param in module.parameters():
+        param.requires_grad = True
 
 dataset_map = {
     "sprites_base": SpritesBaseDataset,
@@ -30,7 +33,7 @@ dataset_map = {
 
 def train(model, config, args):
     numbers = [str(i) for i in range(10)]
-    set_output_file(f"logs/{args.domain_name}_expr_train.txt")
+    set_output_file(f"logs/expr_{args.domain_name}_train.txt")
     train_logger = get_logger("expr_train")
     # [prepare to log the dataset]
     train_logger.critical(f"prepare the dataset {args.dataset_name}.")
@@ -41,14 +44,20 @@ def train(model, config, args):
     model = model.to(config.device)
 
     # [freeze parameters in the model] [optional]
-    freeze(model.perception)
-    freeze(model.central_executor)
+    if args.freeze_perception:
+        freeze(model.perception)
+        train_logger.critical("Percept module is freezed.")
+    else: unfreeze(model.perception)
+    if args.freeze_knowledge:
+        freeze(model.central_executor)
+        train_logger.critical("Knowledge module is freezed")
+    else: unfreeze(model.central_executor)
 
     if args.optimizer == "Adam":
         optimizer = torch.optim.Adam(model.parameters(), lr = args.lr)
     if args.optimizer == "RMSprop":
         optimizer = torch.optim.RMSprop(model.parameters(), lr = args.lr)
-    save_file = f"{args.ckpt_dir}/{args.expr_name}.pth"
+    save_file = f"{args.ckpt_dir}/{args.expr_name}_{{}}.pth"
     # [start the training processs]
     itrs = 0
     train_logger.critical("start training process")
@@ -60,41 +69,45 @@ def train(model, config, args):
             ims = sample["img"]
             masks = sample["masks"]
             outputs = model.perception(ims, masks.long().unsqueeze(1))
-            percept_loss = gather_loss(outputs)["loss"] # gather loss in the perception module
+            percept_loss = gather_loss(outputs)["loss"] / ims.shape[0] # gather loss in the perception module
             all_masks = outputs["masks"]
             alives = outputs["alive"]
 
             language_loss = 0.0 # intialize the knowledge training
-            questions = sample["questions"]
-            programs = sample["programs"]
-            answers = sample["answers"]
-            backbone_features = outputs["features"]
+            if not args.freeze_knowledge:
+                questions = sample["questions"]
+                programs = sample["programs"]
+                answers = sample["answers"]
+                backbone_features = outputs["features"]
+                backbone_features = torch.cat([backbone_features, ims], dim = -1)
     
-            for b in range(len(programs[0])):
-                context = {
-                "end":logit(alives[b].squeeze(-1)),
-                "masks": logit(all_masks[b].permute(2,0,1).flatten(start_dim = 1, end_dim = 1)),
-                "features": backbone_features[b].flatten(start_dim = 0, end_dim = 1),
-                "model": model
-                }
-                for program_idx in range(len(programs)):
-                    question = questions[program_idx][b]
-                    program = programs[program_idx][b]
-                    answer = answers[program_idx][b]
-                    p = Program.parse(program)
-                    output = p.evaluate({0:context})
-                    if answer in ["yes", "no"]:
-                        if answer == "yes":
-                            language_loss += -torch.log(output["end"].sigmoid())
-                        if answer == "no":
-                            language_loss += -torch.log(1 - output["end"].sigmoid())
-                    if answer in numbers:
-                            language_loss += (output["end"]-int(answer))**2
+                for b in range(len(programs[0])):
+                    context = {
+                    "end":logit(alives[b].squeeze(-1)),
+                    "masks": logit(all_masks[b].permute(2,0,1).flatten(start_dim = 1, end_dim = 1)),
+                    "features": backbone_features[b].flatten(start_dim = 0, end_dim = 1),
+                    "model": model
+                    }
+                    for program_idx in range(len(programs)):
+                        question = questions[program_idx][b]
+                        program = programs[program_idx][b]
+                        answer = answers[program_idx][b]
+                        p = Program.parse(program)
+                        output = p.evaluate({0:context})
+                        if answer in ["yes", "no"]:
+                            if answer == "yes":
+                                language_loss += -torch.log(output["end"].sigmoid())
+                            if answer == "no":
+                                language_loss += -torch.log(1 - output["end"].sigmoid())
+                        if answer in numbers:
+                                language_loss += (output["end"]-int(answer))**2
 
-            language_loss /= len(programs[0]) * len(programs)
+                language_loss /= len(programs[0]) * len(programs)
 
             # calculate the overall loss
-            loss = percept_loss + language_loss
+            alpha = 1.0
+            beta = 1.0
+            loss = alpha * percept_loss + beta * language_loss
 
             # [start the optimization]
             optimizer.zero_grad()
@@ -102,11 +115,15 @@ def train(model, config, args):
             optimizer.step()
             if not (itrs % args.ckpt_itrs): 
                 train_logger.critical(f"save the checkpoint at itrs:{itrs} h:{loss}")
-                torch.save(model.state_dict(),f"{args.ckpt_dir}/{args.expr_name}_backup.pth")
+                torch.save(model.perception.state_dict(),f"{args.ckpt_dir}/{args.expr_name}_percept_backup.pth")
+                torch.save(model.central_executor.state_dict(),f"{args.ckpt_dir}/{args.expr_name}_knowledge_backup.pth")
+
             epoch_loss += float(loss) # add the current loss to the total loss
-            sys.stdout.write(f"\repoch:{epoch+1} itrs:{itrs} loss:{loss}\n")
+            sys.stdout.write(f"\repoch:{epoch+1} itrs:{itrs} loss:{loss} percept:{percept_loss} lang:{language_loss}\n")
         train_logger.critical(f"epoch:{epoch+1} loss:{epoch_loss}")
-    torch.save(model.state_dict(),save_file) # save the torch parameters
+
+    torch.save(model.perception.state_dict(),save_file.format("percept")) # save the torch parameters
+    torch.save(model.central_executor.state_dict(),save_file.format("knowledge")) # save the torch parameters
     train_logger.critical(f"model training completed, saved at {save_file}")
 
 def evaluate(model, config, args):

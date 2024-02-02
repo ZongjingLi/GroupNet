@@ -135,11 +135,14 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
         # Type I: existential quantification quries.
         program = f"""
         (exists
-            (intersect
-                (exists
-                    (Pr ({{}} (expand (scene $0)) ) {{}}) 
+            (intersect 
+                (forall
+                    (union
+                        (Pr ({{}} (expand (scene $0)) ) {{}})
+                        (not(expand (scene $0))) 
+                    )
                 )
-                (scene $0)
+                (scene $0)         
             )
         )
         """
@@ -155,13 +158,22 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
         # Type II: compound extistenial quantification.
         program = f"""
         (exists
-            (intersect
-                (exists
-                    (Pr ({{}} (expand (scene $0)) ) {{}}) 
+            (intersect 
+                (intersect
+                    (forall
+                        (union
+                            (Pr ({{}} (expand (scene $0)) ) {{}})
+                            (not(expand (scene $0))) 
+                        )
+                    )
+                    (forall
+                        (union
+                            (Pr ({{}} (expand (scene $0)) ) {{}})
+                            (not(expand (scene $0))) 
+                        )
+                    )
                 )
-                (forall
-                    (Pr ({{}} (expand (scene $0)) ) {{}})
-                )
+                (scene $0)
             )
         )
         """
@@ -181,8 +193,11 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
         query = "how many objects has {} components."
         program = f"""
         (count
-                (exists
-                    (Pr ({{}} (expand (scene $0)) ) {{}}) 
+                (forall
+                    (union
+                        (Pr ({{}} (expand (scene $0)) ) {{}})
+                        (not(expand (scene $0))) 
+                    )
                 )
         )
         """
