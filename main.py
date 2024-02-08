@@ -30,13 +30,13 @@ argparser.add_argument("--dataset_name",                default = "sprites_base"
 
 # [Training detail configurations]
 argparser.add_argument("--epochs",                      default = 1000)
-argparser.add_argument("--batch_size",                  default = 5)
+argparser.add_argument("--batch_size",                  default = 2)
 argparser.add_argument("--optimizer",                   default = "Adam")
 argparser.add_argument("--lr",                          default = 2e-4)
 
 # [Elaborated training details]
-argparser.add_argument("--freeze_perception",           default = False)
-argparser.add_argument("--freeze_knowledge",            default = True)
+argparser.add_argument("--freeze_perception",           default = True)
+argparser.add_argument("--freeze_knowledge",            default = False)
 
 # [Save checkpoints at dir...]
 argparser.add_argument("--ckpt_itrs",                   default = 100)
@@ -56,11 +56,12 @@ domain = load_domain_string(meta_domain_str, domain_parser)
 
 # [Build the Model]
 args.load_ckpt_percept = "checkpoints/KFT_percept_backup.pth"
+args.load_ckpt_knowledge = "checkpoints/KFT_knowledge_backup.pth"
 model = MetaVisualLearner(domain, config)
 model = build_custom(model, domain.domain_name)
 
 if args.load_ckpt_percept: model.perception.load_state_dict(torch.load(args.load_ckpt_percept))
-if args.load_ckpt_knowledge: model.knowledge.load_state_dict(torch.load(args.load_knowledge))
+if args.load_ckpt_knowledge: model.central_executor.load_state_dict(torch.load(args.load_ckpt_knowledge))
 
 if args.mode == "train":
     train(model, config, args)

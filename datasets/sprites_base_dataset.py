@@ -31,7 +31,7 @@ class SpritesBaseDataset(Dataset):
         self.mask_path = data_dir + "/sprites_env/base/{}/{}.npy"
         self.annotation_path = data_dir + "/sprites_env/base/{}/{}.json"
     
-    def __len__(self): return 500
+    def __len__(self): return 20
 
     def __getitem__(self, idx):
         data = {}
@@ -69,7 +69,7 @@ compound_exist_forall_template = f"""
 """
 
 def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", data_dir = "/Users/melkor/Documents/datasets"):
-    max_num_objs = 3
+    max_num_objs = 2
     resolution = resolution
     im_path = data_dir + "/sprites_env/base/{}/{}.png"
     mask_path = data_dir + "/sprites_env/base/{}/{}"

@@ -78,13 +78,12 @@ def train(model, config, args):
                 questions = sample["questions"]
                 programs = sample["programs"]
                 answers = sample["answers"]
-                backbone_features = outputs["features"]
-                backbone_features = torch.cat([backbone_features, ims], dim = -1)
-    
+                backbone_features = model.implementations["universal"](ims)
+                
                 for b in range(len(programs[0])):
                     context = {
                     "end":logit(alives[b].squeeze(-1)),
-                    "masks": logit(all_masks[b].permute(2,0,1).flatten(start_dim = 1, end_dim = 1)),
+                    "masks": logit(all_masks[b].permute(2,0,1).flatten(start_dim = 1, end_dim = 2)),
                     "features": backbone_features[b].flatten(start_dim = 0, end_dim = 1),
                     "model": model
                     }
