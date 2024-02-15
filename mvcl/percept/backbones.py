@@ -36,6 +36,8 @@ class ResidualDenseBlock(nn.Module):
         return self.local_feature_fusion(self.convs(x)) + x
 
 class ResidualDenseNetwork(nn.Module):
+    """Residual Dense Network as the convolutional visual backbone
+    """
     def __init__(self, grow0, n_colors = 4, kernel_size = 3, scale = [2],rdn_config = [4,3,16], no_upsample = True):
         super(ResidualDenseNetwork, self).__init__()
         self.no_upsample = no_upsample

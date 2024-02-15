@@ -31,7 +31,7 @@ class SpritesBaseDataset(Dataset):
         self.mask_path = data_dir + "/sprites_env/base/{}/{}.npy"
         self.annotation_path = data_dir + "/sprites_env/base/{}/{}.json"
     
-    def __len__(self): return 20
+    def __len__(self): return 250
 
     def __getitem__(self, idx):
         data = {}
@@ -73,19 +73,20 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
     resolution = resolution
     im_path = data_dir + "/sprites_env/base/{}/{}.png"
     mask_path = data_dir + "/sprites_env/base/{}/{}"
-    values = {  "color": ["red","green","blue"],
+    values = {  "color": ["red","green","blue",],
                 "shape":["square","circle","diamond"]
                 }
     for scene_id in range(num_scenes):
         scene = {}
-        num_objs = random.randint(1,max_num_objs) # include the interval ends
         
+        num_objs = random.randint(0,max_num_objs) # include the interval ends
         width, height = resolution
         canvas = np.zeros([width,height,3])
         masks = np.zeros([width, height])
         scene_annotation = {"color":[],"shape":[]}
 
         for idx in range(num_objs):
+
             # choose the size of the sprite
             pos_x = random.randint(0, width - 12)
             pos_y = random.randint(0, height - 12)
@@ -125,8 +126,8 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
                         if abs(x - center_x) + abs(y - center_y) < (scale // 2.0):
                             canvas[x][y][color] = 1.0 - noise
                             masks[x][y] = idx + 1
-            plt.imsave(im_path.format(split,scene_id),canvas)
-            np.save(mask_path.format(split,scene_id),masks)
+        plt.imsave(im_path.format(split,scene_id),canvas)
+        np.save(mask_path.format(split,scene_id),masks)
         # generate language groundings for the sprites dataset.
         language_annotations = {}
         language_annotations["questions"] = []
@@ -136,13 +137,13 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
         program = f"""
         (exists
             (intersect 
+                (scene $0)
                 (forall
                     (union
                         (Pr ({{}} (expand (scene $0)) ) {{}})
                         (not(expand (scene $0))) 
                     )
                 )
-                (scene $0)         
             )
         )
         """
@@ -192,12 +193,15 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
         # Type III: counting based quries.
         query = "how many objects has {} components."
         program = f"""
-        (count
+        (count  
+                (intersect
                 (forall
                     (union
                         (Pr ({{}} (expand (scene $0)) ) {{}})
                         (not(expand (scene $0))) 
                     )
+                )
+                (scene $0)
                 )
         )
         """

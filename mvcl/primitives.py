@@ -46,11 +46,13 @@ operator_exists = Primitive(
     arrow(ObjectSet, Boolean),
     lambda x:{**x,
     "end":torch.max(x["end"], dim = -1).values})
+
 operator_forall = Primitive(
     "forall",
     arrow(ObjectSet, Boolean),
     lambda x:{**x,
     "end":torch.min(x["end"], dim = -1).values})
+
 
 # [Boolean operators]
 operator_and = Primitive(
@@ -125,6 +127,36 @@ operator_expand = Primitive(
         "features": expat(x["features"], idx = 0, num = x["masks"].shape[0]),
         "model":x["model"]}
 )
+
+"""Filter Exists Operator and Filter Forall Operator"""
+def filter_exists(ObjectSet, Property):
+    Concept = "color"
+    if isinstance(Property, str):
+        exist_map = torch.min(ObjectSet["masks"],expand_like(ObjectSet["end"], ObjectSet["masks"]))
+        features = expat(ObjectSet["features"], idx = 0, num = ObjectSet["masks"].shape[0]) # expand features
+
+        executor = ObjectSet["model"]
+        concept_map = executor.get_mapper(Concept)(features) # concept map
+        property_map = executor.entailment(concept_map, executor.get_concept_embedding(Property)) # value map
+        feature_map = torch.min(property_map, exist_map) # union
+
+    exists_holds = torch.max(feature_map, dim = -1).values # forall
+    return {**ObjectSet, "end":exists_holds}
+
+def filter_forall(ObjectSet, Property):
+    Concept = "color"
+    if isinstance(Property, str):
+        exist_map = -torch.min(ObjectSet["masks"],expand_like(ObjectSet["end"], ObjectSet["masks"]))
+        features = expat(ObjectSet["features"], idx = 0, num = ObjectSet["masks"].shape[0]) # expand features and 
+
+        executor = ObjectSet["model"]
+        concept_map = executor.get_mapper(Concept)(features)
+        property_map = executor.entailment(concept_map, executor.get_concept_embedding(Property))
+        feature_map = torch.max(property_map, exist_map) # union
+
+    exists_holds = torch.min(feature_map, dim = -1).values # exists
+    return {**ObjectSet, "end":exists_holds}
+
 
 # [Count based questions the number of elements in the set]
 operator_count = Primitive(

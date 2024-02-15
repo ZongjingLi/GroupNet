@@ -1,49 +1,49 @@
-q:is there any object with color of blue
+q:is there any object with color of green
 p:
         (exists
             (intersect 
+                (scene $0)
                 (forall
                     (union
-                        (Pr (color (expand (scene $0)) ) blue)
+                        (Pr (color (expand (scene $0)) ) green)
                         (not(expand (scene $0))) 
                     )
                 )
-                (scene $0)         
             )
         )
         
-answer:yes
+gt-answer:no predict-answer: no
 
-q:is there any object with shape of circle
+q:is there any object with shape of diamond
 p:
         (exists
             (intersect 
+                (scene $0)
                 (forall
                     (union
-                        (Pr (shape (expand (scene $0)) ) circle)
+                        (Pr (shape (expand (scene $0)) ) diamond)
                         (not(expand (scene $0))) 
                     )
                 )
-                (scene $0)         
             )
         )
         
-answer:yes
+gt-answer:no predict-answer: no
 
-q:is there any object with color of green and with shape of circle
+q:is there any object with color of red and with shape of square
 p:
         (exists
             (intersect 
                 (intersect
                     (forall
                         (union
-                            (Pr (color (expand (scene $0)) ) green)
+                            (Pr (color (expand (scene $0)) ) red)
                             (not(expand (scene $0))) 
                         )
                     )
                     (forall
                         (union
-                            (Pr (shape (expand (scene $0)) ) circle)
+                            (Pr (shape (expand (scene $0)) ) square)
                             (not(expand (scene $0))) 
                         )
                     )
@@ -52,31 +52,37 @@ p:
             )
         )
         
-answer:no
+gt-answer:no predict-answer: no
 
-q:how many objects with color of blue are there?
+q:how many objects with color of red are there?
 p:
-        (count
+        (count  
+                (intersect
                 (forall
                     (union
-                        (Pr (color (expand (scene $0)) ) blue)
+                        (Pr (color (expand (scene $0)) ) red)
                         (not(expand (scene $0))) 
                     )
                 )
-        )
-        
-answer:1
-
-q:how many objects with shape of square are there?
-p:
-        (count
-                (forall
-                    (union
-                        (Pr (shape (expand (scene $0)) ) square)
-                        (not(expand (scene $0))) 
-                    )
+                (scene $0)
                 )
         )
         
-answer:0
+gt-answer:0 predict-answer: tensor(0.0179, grad_fn=<SumBackward0>)
+
+q:how many objects with shape of circle are there?
+p:
+        (count  
+                (intersect
+                (forall
+                    (union
+                        (Pr (shape (expand (scene $0)) ) circle)
+                        (not(expand (scene $0))) 
+                    )
+                )
+                (scene $0)
+                )
+        )
+        
+gt-answer:1 predict-answer: tensor(0.1771, grad_fn=<SumBackward0>)
 

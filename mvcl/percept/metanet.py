@@ -217,8 +217,8 @@ class MetaNet(nn.Module):
         v_seg = torch.gather(segment_targets, 1, v_indices)
 
         """Calculate the true connecivity between pairs of indices"""
-        valid_mask = 1.0
-        connectivity = (u_seg == v_seg) * valid_mask
+        valid_mask = u_seg != 0
+        connectivity = (u_seg == v_seg) #* valid_mask
         connectivity = logit(connectivity)
         #connectivity = torch.softmax(connectivity, dim = -1)
         #y_true = connectivity / connectivity.max(-1, keepdim = True)[0]

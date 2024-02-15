@@ -30,7 +30,7 @@ argparser.add_argument("--dataset_name",                default = "sprites_base"
 
 # [Training detail configurations]
 argparser.add_argument("--epochs",                      default = 1000)
-argparser.add_argument("--batch_size",                  default = 2)
+argparser.add_argument("--batch_size",                  default = 3)
 argparser.add_argument("--optimizer",                   default = "Adam")
 argparser.add_argument("--lr",                          default = 2e-4)
 
@@ -39,7 +39,7 @@ argparser.add_argument("--freeze_perception",           default = True)
 argparser.add_argument("--freeze_knowledge",            default = False)
 
 # [Save checkpoints at dir...]
-argparser.add_argument("--ckpt_itrs",                   default = 100)
+argparser.add_argument("--ckpt_itrs",                   default = 10)
 argparser.add_argument("--ckpt_dir",                    default = "checkpoints")
 argparser.add_argument("--load_ckpt_knowledge",         default = False)
 argparser.add_argument("--load_ckpt_percept",           default = False)
@@ -67,3 +67,7 @@ if args.mode == "train":
     train(model, config, args)
 if args.mode == "eval":
     evaluate(model, config, args)
+
+if args.mode == "meta":
+    for train_mode in []:
+        pass
