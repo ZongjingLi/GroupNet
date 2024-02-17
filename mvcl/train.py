@@ -17,6 +17,7 @@ from rinarak.logger import get_logger,set_output_file
 from rinarak.utils.tensor import gather_loss, logit
 from rinarak.program import Program
 from rinarak.utils.tensor import freeze
+from rinarak.utils.tensor import stats_summary
 
 from mvcl.primitives import Primitive
 
@@ -41,9 +42,9 @@ def log_gt_inputs(ims, masks):
 
 def log_instance_masks(masks, alives):
     fig = plt.figure("masks"); b = 0
-    for i in range(masks.shape[-1]):
+    for i in range(masks.shape[1]):
         ax = fig.add_subplot(2,5,1+i);plt.axis('off')
-        ax.imshow(masks[b,:,:,i] * alives[b,i])
+        ax.imshow(masks[b,i,:,:] * alives[b,i])
     plt.savefig("outputs/predict_masks.png", bbox_inches='tight')
 
 def log_knowledge_grounding_info(questions, programs, answers, predict_answers, log_file = "outputs/logqa.txt"):
@@ -53,7 +54,41 @@ def log_knowledge_grounding_info(questions, programs, answers, predict_answers, 
             log_file.write("p:"+programs[i][0]+"\n")
             log_file.write("gt-answer:"+answers[i][0]+" predict-answer: "+str(predict_answers[i])+"\n\n")
 
+def to_logits(tensor):
+    """check if input tensors are in the form of logits
+    """
+    if (tensor.max() > 1 or tensor.min() < 0): return tensor # return if it is already unbounded
+    return logit(tensor)
+
+def flatten(features, mode = "img"):
+    """masks in the form of BxKxWxH"""
+    if mode == "img": return features.permute(2,0,1).flatten(start_dim = 1, end_dim = 2)
+    return features
+
+def prepare_context(alives, masks, features, model, b = 0):
+    """prepare the context for the execution
+    inputs:
+        end: BxKx1 tensor representing logits or probability (check bounded)
+        masks: BxKxN tensor representing logits or probability of masks of primitives features (check bounded)
+        features: BxNxD tensor representing features of the primitives
+        model: the executor for concept embeddings and more
+    return:
+        the context as a diction
+    """
+    assert len(alives.shape) in [2,3], "only batch wise operations are allowed"
+    if len(alives.shape) == 2:B, K = alives.shape
+    elif len(alives.shape) == 3:B, K, _ = alives.shape
+    ends = alives.reshape([B, K, 1])
+    context = {
+            "end": to_logits(ends)[b],
+            "masks": to_logits(flatten(masks, mode = "img"))[b],
+            "features": features[b].flatten(start_dim = 0, end_dim = 1),
+            "model": model
+            }
+    return context
+
 def ground_knowledge(vqa_sample, masks, alives, features, model):
+    language_loss = 0.0
     numbers = [str(i) for i in range(10)]
     questions = vqa_sample["questions"]
     programs = vqa_sample["programs"]
@@ -61,7 +96,7 @@ def ground_knowledge(vqa_sample, masks, alives, features, model):
     for b in range(len(programs[0])):
         context = {
                     "end":logit(alives[b].squeeze(-1)),
-                    "masks": logit(masks[b].permute(2,0,1).flatten(start_dim = 1, end_dim = 2)),
+                    "masks": logit(masks[b].flatten(start_dim = 1, end_dim = 2)),
                     "features": features[b].flatten(start_dim = 0, end_dim = 1),
                     "model": model
             }
@@ -78,10 +113,10 @@ def ground_knowledge(vqa_sample, masks, alives, features, model):
             if answer == "no":
                 language_loss += -torch.log(1 - output["end"].sigmoid())
             pred_ans = "yes" if output["end"] > 0 else "no"
-            if answer in numbers:
-                language_loss += (output["end"]-int(answer))**2
-                pred_ans = str(output["end"])
-                predict_answers.append(pred_ans)
+        if answer in numbers:
+            language_loss += (output["end"]-int(answer))**2
+            pred_ans = str(output["end"].detach().numpy())
+        predict_answers.append(pred_ans)
 
     language_loss /= len(programs[0]) * len(programs)
     return {"loss": language_loss, "questions":questions, "answers":answers, "programs":programs, "predict_answers":predict_answers}
@@ -128,14 +163,16 @@ def train(model, config, args):
             """train the perception module, extract masks"""
             outputs = model.perception(ims, masks.long().unsqueeze(1))
             percept_loss = gather_loss(outputs)["loss"] / ims.shape[0] # gather loss in the perception module
-            all_masks = outputs["masks"]
+            all_masks = outputs["masks"].permute(0,3,1,2)
             alives = outputs["alive"]
+
+            stats_summary(masks)
 
             """calculate loss for the knowledge grounding"""
             language_loss = 0.0 # intialize the knowledge training
             backbone_features = model.implementations["universal"](ims)
             if not args.freeze_knowledge:
-                language_grounding_outputs = ground_knowledge(sample, all_masks, alives, backbone_features)
+                language_grounding_outputs = ground_knowledge(sample, all_masks, alives, backbone_features, model)
                 language_loss += language_grounding_outputs["loss"]
 
             """calculate the overall loss"""
@@ -153,7 +190,7 @@ def train(model, config, args):
                 torch.save(model.central_executor.state_dict(),f"{args.ckpt_dir}/{args.expr_name}_knowledge_backup.pth")
 
                 """Save the image and masks for visualization"""
-                log_gt_inputs(ims.permute(1,2,0), masks[0]) # only for the first batch
+                log_gt_inputs(ims[0].permute(1,2,0), masks[0]) # only for the first batch
                 """Save the output masks predicted"""
                 log_instance_masks(all_masks, alives) # log the instance level masks for each object
                 """Log Knowledge Gronding Visualizatoin"""

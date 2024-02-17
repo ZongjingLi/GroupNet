@@ -53,7 +53,6 @@ with open(f"domains/{args.domain_name}_domain.txt","r") as domain:
     for line in domain: meta_domain_str += line
 domain = load_domain_string(meta_domain_str, domain_parser)
 
-
 # [Build the Model]
 args.load_ckpt_percept = "checkpoints/KFT_percept_backup.pth"
 args.load_ckpt_knowledge = "checkpoints/KFT_knowledge_backup.pth"

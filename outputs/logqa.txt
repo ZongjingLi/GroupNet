@@ -14,14 +14,14 @@ p:
         
 gt-answer:no predict-answer: no
 
-q:is there any object with shape of diamond
+q:is there any object with shape of square
 p:
         (exists
             (intersect 
                 (scene $0)
                 (forall
                     (union
-                        (Pr (shape (expand (scene $0)) ) diamond)
+                        (Pr (shape (expand (scene $0)) ) square)
                         (not(expand (scene $0))) 
                     )
                 )
@@ -30,20 +30,20 @@ p:
         
 gt-answer:no predict-answer: no
 
-q:is there any object with color of red and with shape of square
+q:is there any object with color of green and with shape of circle
 p:
         (exists
             (intersect 
                 (intersect
                     (forall
                         (union
-                            (Pr (color (expand (scene $0)) ) red)
+                            (Pr (color (expand (scene $0)) ) green)
                             (not(expand (scene $0))) 
                         )
                     )
                     (forall
                         (union
-                            (Pr (shape (expand (scene $0)) ) square)
+                            (Pr (shape (expand (scene $0)) ) circle)
                             (not(expand (scene $0))) 
                         )
                     )
@@ -54,13 +54,13 @@ p:
         
 gt-answer:no predict-answer: no
 
-q:how many objects with color of red are there?
+q:how many objects with color of blue are there?
 p:
         (count  
                 (intersect
                 (forall
                     (union
-                        (Pr (color (expand (scene $0)) ) red)
+                        (Pr (color (expand (scene $0)) ) blue)
                         (not(expand (scene $0))) 
                     )
                 )
@@ -68,15 +68,15 @@ p:
                 )
         )
         
-gt-answer:0 predict-answer: tensor(0.0179, grad_fn=<SumBackward0>)
+gt-answer:1 predict-answer: 0.12575765
 
-q:how many objects with shape of circle are there?
+q:how many objects with shape of square are there?
 p:
         (count  
                 (intersect
                 (forall
                     (union
-                        (Pr (shape (expand (scene $0)) ) circle)
+                        (Pr (shape (expand (scene $0)) ) square)
                         (not(expand (scene $0))) 
                     )
                 )
@@ -84,5 +84,5 @@ p:
                 )
         )
         
-gt-answer:1 predict-answer: tensor(0.1771, grad_fn=<SumBackward0>)
+gt-answer:0 predict-answer: 0.79224867
 

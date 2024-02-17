@@ -74,5 +74,15 @@ def build_demo_domain(model):
     shape.value = lambda x: {**x, "features": x["model"].get_mapper("shape")(x["features"])}
     return model
 
+def build_line_demo_domain(model):
+    from .primitives import Primitive
+    model.implementations["universal"] = nn.Linear(1, 32)
+    model.implementations["color"] = nn.Linear(32, 1)
+    # [Pre-define some concept mappers]
+    color = Primitive.GLOBALS["color"]
+    color.value = lambda x: {**x, "features": x["model"].get_mapper("color")(x["features"])}
+    return model
+
 def build_custom(model, domain_name):
     if domain_name == "demo": return build_demo_domain(model)
+    if domain_name == "line_demo": return build_line_demo_domain(model)
