@@ -44,9 +44,9 @@ class SpritesBaseDataset(Dataset):
         questions = annotations["questions"]
         programs = annotations["programs"]
         answers = annotations["answers"]
-        data["programs"] = programs
-        data["questions"] = questions
-        data["answers"] = answers
+        data["programs"] = programs[:-2]
+        data["questions"] = questions[:-2]
+        data["answers"] = answers[:-2]
         return data
 
 exist_template = f"""
@@ -68,13 +68,99 @@ compound_exist_forall_template = f"""
     )
 """
 
+def generate_sp_exists(language_annotations, scene_annotation, values):
+    program = f"""
+        (exists
+            (intersect 
+                (scene $0)
+                (forall
+                    (union
+                        (Pr ({{}} (expand (scene $0)) ) {{}})
+                        (not(expand (scene $0))) 
+                    )
+                )
+            )
+        )
+        """
+    for key in values:
+        valid_values = values[key]
+        sample_value = np.random.choice(valid_values)
+        sample_program = program.format(key, sample_value)
+        answer = "yes" if sample_value in scene_annotation[key] else "no"
+        language = f"is there any object with {key} of {sample_value}"
+        language_annotations["questions"].append(language)
+        language_annotations["programs"].append(sample_program)
+        language_annotations["answers"].append(answer)
+
+def generate_sp_double_exists(language_annotations, scene_annotation, values):
+    program = f"""
+        (exists
+            (intersect 
+                (intersect
+                    (forall
+                        (union
+                            (Pr ({{}} (expand (scene $0)) ) {{}})
+                            (not(expand (scene $0))) 
+                        )
+                    )
+                    (forall
+                        (union
+                            (Pr ({{}} (expand (scene $0)) ) {{}})
+                            (not(expand (scene $0))) 
+                        )
+                    )
+                )
+                (scene $0)
+            )
+        )
+        """
+    for key1 in ["color"]:
+        sample_value1 = np.random.choice(values[key1])
+        for key2 in ["shape"]:
+            sample_value2 = np.random.choice(values[key2])
+
+            sample_program = program.format(key1, sample_value1, key2, sample_value2)
+            flag = sample_value1 in scene_annotation["color"] and sample_value2 in scene_annotation["shape"]
+            answer = "yes" if flag else "no"
+            language = f"is there any object with {key1} of {sample_value1} and with {key2} of {sample_value2}"
+            language_annotations["questions"].append(language)
+            language_annotations["programs"].append(sample_program)
+            language_annotations["answers"].append(answer)
+
+def generate_counts(language_annotations, scene_annotation, values):
+    query = "how many objects has {} components."
+    program = f"""
+        (count  
+                (intersect
+                (forall
+                    (union
+                        (Pr ({{}} (expand (scene $0)) ) {{}})
+                        (not(expand (scene $0))) 
+                    )
+                )
+                (scene $0)
+                )
+        )
+        """
+    for key in values:
+        valid_values = values[key]
+        sample_value = np.random.choice(valid_values)
+        sample_program = program.format(key, sample_value)
+        answer = 0
+        for value in scene_annotation[key]:
+            if value == sample_value: answer += 1
+        language = f"how many objects with {key} of {sample_value} are there?"
+        language_annotations["questions"].append(language)
+        language_annotations["programs"].append(sample_program)
+        language_annotations["answers"].append(str(answer))
+
 def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", data_dir = "/Users/melkor/Documents/datasets"):
-    max_num_objs = 2
+    max_num_objs = 3
     resolution = resolution
     im_path = data_dir + "/sprites_env/base/{}/{}.png"
     mask_path = data_dir + "/sprites_env/base/{}/{}"
-    values = {  "color": ["red","green","blue",],
-                "shape":["square","circle","diamond"]
+    values = {  "color": ["red","green","blue","not-any-color"],
+                "shape":["square","circle","diamond", "not-any-shape"]
                 }
     for scene_id in range(num_scenes):
         scene = {}
@@ -85,6 +171,9 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
         masks = np.zeros([width, height])
         scene_annotation = {"color":[],"shape":[]}
 
+        # background information
+        scene_annotation["color"].append("not-any-color")
+        scene_annotation["shape"].append("not-any-shape")
         for idx in range(num_objs):
 
             # choose the size of the sprite
@@ -134,88 +223,13 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
         language_annotations["answers"] = []
         language_annotations["programs"] = []
         # Type I: existential quantification quries.
-        program = f"""
-        (exists
-            (intersect 
-                (scene $0)
-                (forall
-                    (union
-                        (Pr ({{}} (expand (scene $0)) ) {{}})
-                        (not(expand (scene $0))) 
-                    )
-                )
-            )
-        )
-        """
-        for key in values:
-            valid_values = values[key]
-            sample_value = np.random.choice(valid_values)
-            sample_program = program.format(key, sample_value)
-            answer = "yes" if sample_value in scene_annotation[key] else "no"
-            language = f"is there any object with {key} of {sample_value}"
-            language_annotations["questions"].append(language)
-            language_annotations["programs"].append(sample_program)
-            language_annotations["answers"].append(answer)
+        for i in range(12):
+            generate_sp_exists(language_annotations, scene_annotation, values);
         # Type II: compound extistenial quantification.
-        program = f"""
-        (exists
-            (intersect 
-                (intersect
-                    (forall
-                        (union
-                            (Pr ({{}} (expand (scene $0)) ) {{}})
-                            (not(expand (scene $0))) 
-                        )
-                    )
-                    (forall
-                        (union
-                            (Pr ({{}} (expand (scene $0)) ) {{}})
-                            (not(expand (scene $0))) 
-                        )
-                    )
-                )
-                (scene $0)
-            )
-        )
-        """
-        for key1 in ["color"]:
-            sample_value1 = np.random.choice(values[key1])
-            for key2 in ["shape"]:
-                sample_value2 = np.random.choice(values[key2])
-
-                sample_program = program.format(key1, sample_value1, key2, sample_value2)
-                flag = sample_value1 in scene_annotation["color"] and sample_value2 in scene_annotation["shape"]
-                answer = "yes" if flag else "no"
-                language = f"is there any object with {key1} of {sample_value1} and with {key2} of {sample_value2}"
-                language_annotations["questions"].append(language)
-                language_annotations["programs"].append(sample_program)
-                language_annotations["answers"].append(answer)
+        generate_sp_double_exists(language_annotations, scene_annotation, values)
         # Type III: counting based quries.
-        query = "how many objects has {} components."
-        program = f"""
-        (count  
-                (intersect
-                (forall
-                    (union
-                        (Pr ({{}} (expand (scene $0)) ) {{}})
-                        (not(expand (scene $0))) 
-                    )
-                )
-                (scene $0)
-                )
-        )
-        """
-        for key in values:
-            valid_values = values[key]
-            sample_value = np.random.choice(valid_values)
-            sample_program = program.format(key, sample_value)
-            answer = 0
-            for value in scene_annotation[key]:
-                if value == sample_value: answer += 1
-            language = f"how many objects with {key} of {sample_value} are there?"
-            language_annotations["questions"].append(language)
-            language_annotations["programs"].append(sample_program)
-            language_annotations["answers"].append(str(answer))
+        for i in range(6):
+            generate_counts(language_annotations, scene_annotation, values)
         save_json(language_annotations,data_dir + "/sprites_env/base/{}/{}.json".format(split,scene_id))
     return 
 

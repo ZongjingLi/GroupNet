@@ -33,6 +33,14 @@ dataset_map = {
 def unfreeze(module):
     for param in module.parameters():param.requires_grad = True
 
+def to_instance_masks(one_hot_masks):
+    ids = torch.unique(one_hot_masks)
+    masks = []
+    for i in ids:
+            masks.append((one_hot_masks == i).unsqueeze(0))
+    masks = torch.cat(masks, dim = 0).permute(1,0,2,3)
+    return masks
+
 def log_gt_inputs(ims, masks):
     plt.figure("input-img")
     plt.imshow(ims);plt.axis('off')
@@ -95,7 +103,7 @@ def ground_knowledge(vqa_sample, masks, alives, features, model):
     answers = vqa_sample["answers"]
     for b in range(len(programs[0])):
         context = {
-                    "end":logit(alives[b].squeeze(-1)),
+                    "end":logit(alives[b]),
                     "masks": logit(masks[b].flatten(start_dim = 1, end_dim = 2)),
                     "features": features[b].flatten(start_dim = 0, end_dim = 1),
                     "model": model
@@ -120,6 +128,24 @@ def ground_knowledge(vqa_sample, masks, alives, features, model):
 
     language_loss /= len(programs[0]) * len(programs)
     return {"loss": language_loss, "questions":questions, "answers":answers, "programs":programs, "predict_answers":predict_answers}
+
+def visualize_concept_maps(concept_name, features, model):
+    import math
+    mapper = model.implementations[concept_name]
+
+    concept_feature_map = mapper(features)
+
+    values = model.central_executor.type_constraints[concept_name]
+
+    W = H = int(math.sqrt(concept_feature_map.shape[1]))
+    plt.figure(f"{concept_name}")
+    for i,value in enumerate(values):
+        value_map = model.entailment(concept_feature_map, value).reshape([W,H])
+        plt.subplot(1, len(values), i+1)
+        plt.cla()
+        plt.imshow(value_map.sigmoid().detach() , cmap = "bone")
+        plt.title(value)
+    plt.savefig("outputs/{}_visualize.png".format(concept_name), bbox_inches='tight')
 
 def train(model, config, args):
     model = model.to(config.device)
@@ -166,7 +192,10 @@ def train(model, config, args):
             all_masks = outputs["masks"].permute(0,3,1,2)
             alives = outputs["alive"]
 
-            stats_summary(masks)
+            # weird demo
+            all_masks = to_instance_masks(masks)
+            alives = torch.ones(all_masks.shape[:2])
+            #print(all_masks.shape, alives.shape)
 
             """calculate loss for the knowledge grounding"""
             language_loss = 0.0 # intialize the knowledge training
@@ -200,6 +229,9 @@ def train(model, config, args):
                     answers = language_grounding_outputs["answers"]
                     predict_answers = language_grounding_outputs["predict_answers"]
                     log_knowledge_grounding_info(questions, programs, answers, predict_answers) # log the question answer grounding infos.
+
+                visualize_concept_maps("color", backbone_features[0].flatten(start_dim = 0, end_dim = 1), model)
+                visualize_concept_maps("shape", backbone_features[0].flatten(start_dim = 0, end_dim = 1), model)
 
             epoch_loss += float(loss) # add the current loss to the total loss
             sys.stdout.write(f"\repoch:{epoch+1} itrs:{itrs} loss:{loss} percept:{percept_loss} lang:{language_loss}\n")

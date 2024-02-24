@@ -30,7 +30,7 @@ argparser.add_argument("--dataset_name",                default = "sprites_base"
 
 # [Training detail configurations]
 argparser.add_argument("--epochs",                      default = 1000)
-argparser.add_argument("--batch_size",                  default = 3)
+argparser.add_argument("--batch_size",                  default = 4)
 argparser.add_argument("--optimizer",                   default = "Adam")
 argparser.add_argument("--lr",                          default = 2e-4)
 
@@ -55,7 +55,7 @@ domain = load_domain_string(meta_domain_str, domain_parser)
 
 # [Build the Model]
 args.load_ckpt_percept = "checkpoints/KFT_percept_backup.pth"
-args.load_ckpt_knowledge = "checkpoints/KFT_knowledge_backup.pth"
+#args.load_ckpt_knowledge = "checkpoints/KFT_knowledge_backup.pth"
 model = MetaVisualLearner(domain, config)
 model = build_custom(model, domain.domain_name)
 

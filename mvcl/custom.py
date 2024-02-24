@@ -8,6 +8,7 @@
 import torch
 import torch.nn as nn
 from rinarak.dklearn.nn.mlp import FCBlock
+from rinarak.dklearn.cv.unet import UNet
 import math
 
 class UnivseralMapper(nn.Module):
@@ -21,6 +22,12 @@ class UnivseralMapper(nn.Module):
         x = self.conv1(x)
         outputs = self.conv2(x)
         return self.fc1(outputs.permute(0,2,3,1))
+    
+class IdMap(nn.Module):
+    def __init__(self):
+        super().__init__()
+    def forward(self, x):
+        return x.permute(0,2,3,1)
 
 class ColorMapper(nn.Module):
     def __init__(self,input_dim,output_dim):
@@ -40,14 +47,14 @@ class ColorMapper(nn.Module):
             x = x.reshape([B,W,H,D])
         x = x.permute(0,3,1,2)
         outputs = self.conv(x).flatten(start_dim = -2,end_dim = -1).permute(0,2,1)
-        return self.fc1(outputs)
+        return torch.tanh(self.fc1(outputs)) * 3.
 
 class ShapeMapper(nn.Module):
     def __init__(self,input_dim,output_dim):
         super().__init__()
         latent_dim = 100
-        self.conv = nn.Conv2d(input_dim,latent_dim,3,1,1)
-        self.fc1 = FCBlock(100,2,latent_dim,output_dim)
+        self.conv =UNet(input_dim, latent_dim)
+        #self.fc1 = FCBlock(100,2,latent_dim,output_dim)
     
     def forward(self, x):
         if len(x.shape) == 2:
@@ -60,13 +67,14 @@ class ShapeMapper(nn.Module):
             x = x.reshape([B,W,H,D])
         x = x.permute(0,3,1,2)
         outputs = self.conv(x).flatten(start_dim = -2,end_dim = -1).permute(0,2,1)
-        return self.fc1(outputs)
+        EPS = 7.
+        return torch.tanh(EPS * outputs)#torch.tanh(self.fc1(outputs)) * 3.
 
 def build_demo_domain(model):
     from .primitives import Primitive
-    model.implementations["universal"] = UnivseralMapper(4,132)
-    model.implementations["color"] = ColorMapper(132,100)
-    model.implementations["shape"] = ShapeMapper(132,100)
+    model.implementations["universal"] = IdMap()#UnivseralMapper(4,132)
+    model.implementations["color"] = ColorMapper(4,model.config.object_dim)
+    model.implementations["shape"] = ShapeMapper(4,model.config.concept_dim)
     # [Pre-define some concept mapper]
     color = Primitive.GLOBALS["color"]
     color.value = lambda x: {**x, "features": x["model"].get_mapper("color")(x["features"])}

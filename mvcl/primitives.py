@@ -76,7 +76,7 @@ operator_pr = Primitive("Pr", arrow(ObjectSet,Concept,ObjectSet),
     {**x,
     "end":
         x["model"].entailment(x["features"],
-        x["model"].get_concept_embedding(y)),    
+        y),    
     })
 
 def relate(x,y,z):

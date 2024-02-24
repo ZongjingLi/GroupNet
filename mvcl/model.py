@@ -58,8 +58,17 @@ class MetaVisualLearner(nn.Module):
     def get_concept_embedding(self, name):return self.central_executor.get_concept_embedding(name)
     
     def entailment(self,c1, c2): 
-        entail_mask = self.central_executor.entailment(c1,c2)
-        return entail_mask
+        if isinstance(c2, str):
+            parent_type = self.central_executor.get_type(c2)
+            values = self.central_executor.type_constraints[parent_type]
+            masks = []
+            for comp in values:
+                masks.append(self.central_executor.entailment(c1,self.get_concept_embedding(comp)).unsqueeze(-1))
+            masks = torch.cat(masks, dim = -1)
+            masks = F.normalize(masks.sigmoid(), dim = -1)
+            #return logit( torch.softmax(masks, dim = -1)[:,:,values.index(c2)] )
+            return logit(masks[:, :, values.index(c2)])
+        #return self.central_executor.entailment(c1,c2)
     
     def segment(self, boolean_map, base_feature_map):
         scores = 1

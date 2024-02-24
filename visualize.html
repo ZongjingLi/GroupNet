@@ -1,20 +1,31 @@
 <head>
     <title>MetaVisualConceptLearner</title>
+    <script type="text/x-mathjax-config">
+        MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}});
+      </script>
+      <script type="text/javascript"
+        src="http://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+      </script>
 </head>
 <body>
     <h1>MetaVisualConceptLearner</h1>
     <div>
         <div>
             <h3>Image Inputs v.s GT-Masks</h3>
-            <img src="outputs/input_image.png">
-            <img src="outputs/gt_masks.png">
+            <img src="outputs/input_image.png" width="128" height="128">
+            <img src="outputs/gt_masks.png" width="128" height="128">
             <img src="outputs/predict_masks.png">
+            <div>
+                <img src="outputs/color_visualize.png"  height="128">
+                <img src="outputs/shape_visualize.png"  height="128">
+            </div>
         </div>
     </div>
     <div>
         <div>
             <h3>Language as Grounding</h3>
             <object data="outputs/logqa.txt" width="500" height="300"></object>
+        
         </div>
     </div>
 
