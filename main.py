@@ -21,7 +21,7 @@ import torch.nn as nn
 dataset_dir = "/Users/melkor/Documents/datasets"
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--expr_name",                   default = "KFT")
+argparser.add_argument("--expr_name",                   default = "KFT-UNet")
 argparser.add_argument("--dataset_dir",                 default = dataset_dir)
 # [Experiment configuration]
 argparser.add_argument("--domain_name",                 default = "demo")
@@ -35,11 +35,11 @@ argparser.add_argument("--optimizer",                   default = "Adam")
 argparser.add_argument("--lr",                          default = 2e-4)
 
 # [Elaborated training details]
-argparser.add_argument("--freeze_perception",           default = True)
-argparser.add_argument("--freeze_knowledge",            default = False)
+argparser.add_argument("--freeze_perception",           default = False)
+argparser.add_argument("--freeze_knowledge",            default = True)
 
 # [Save checkpoints at dir...]
-argparser.add_argument("--ckpt_itrs",                   default = 10)
+argparser.add_argument("--ckpt_itrs",                   default = 100)
 argparser.add_argument("--ckpt_dir",                    default = "checkpoints")
 argparser.add_argument("--load_ckpt_knowledge",         default = False)
 argparser.add_argument("--load_ckpt_percept",           default = False)

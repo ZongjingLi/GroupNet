@@ -165,15 +165,15 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
     for scene_id in range(num_scenes):
         scene = {}
         
-        num_objs = random.randint(0,max_num_objs) # include the interval ends
+        num_objs = random.randint(1,max_num_objs) # include the interval ends
         width, height = resolution
         canvas = np.zeros([width,height,3])
         masks = np.zeros([width, height])
         scene_annotation = {"color":[],"shape":[]}
 
         # background information
-        scene_annotation["color"].append("not-any-color")
-        scene_annotation["shape"].append("not-any-shape")
+        #scene_annotation["color"].append("not-any-color")
+        #scene_annotation["shape"].append("not-any-shape")
         for idx in range(num_objs):
 
             # choose the size of the sprite

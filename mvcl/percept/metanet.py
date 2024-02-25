@@ -14,6 +14,7 @@ from .propagation import GraphPropagation
 from .competition import Competition
 
 from .backbones import ResidualDenseNetwork, FeatureMapEncoder
+from rinarak.dklearn.cv.unet import UNet
 
 from rinarak.utils.tensor import gather_tensor, stats_summary, weighted_softmax, logit
 from torch_sparse import SparseTensor
@@ -102,6 +103,8 @@ class MetaNet(nn.Module):
         rdn_args = SimpleNamespace(g0=latent_dim  ,RDNkSize=3,n_colors=config.channel_dim,
                                RDNconfig=(4,3,16),scale=[2],no_upsampling=True)
         self.backbone = ResidualDenseNetwork(latent_dim)
+        #UNet(n_channels = config.channel_dim, n_classes = latent_dim, bilinear = True)
+        #ResidualDenseNetwork(latent_dim)
         #FeatureMapEncoder(config.channel_dim, z_dim = latent_dim)
         #RDN(rdn_args)
 
@@ -117,7 +120,7 @@ class MetaNet(nn.Module):
 
         """graph propagation on the grid and masks extraction"""
         self.propagator = GraphPropagation(num_iters = num_prop_itrs)
-        self.competition = Competition(num_masks = 10)
+        self.competition = Competition(num_masks = num_masks)
         
         kq_dim = 132
         self.ks_map = nn.Linear(latent_dim, kq_dim)
@@ -181,7 +184,10 @@ class MetaNet(nn.Module):
             y_features = torch.gather(flatten_qs, dim = 1, index = y_indices)
 
             """Calculate the logits between each node pairs"""
+
             logits = (x_features * y_features).sum(dim = -1) * (D ** -0.5)
+            #logits = 0.3 * ( (x_features.long() == 1.) .sum(dim = -1) ) .float()
+
             logits = logits.reshape([B,N,K])
 
             #all_logits.append(logits)
@@ -217,8 +223,13 @@ class MetaNet(nn.Module):
         v_seg = torch.gather(segment_targets, 1, v_indices)
 
         """Calculate the true connecivity between pairs of indices"""
+        import matplotlib.pyplot as plt
         valid_mask = u_seg != 0
-        connectivity = (u_seg == v_seg) #* valid_mask
+
+        #u_seg = u_seg != 0
+        #v_seg = v_seg != 0
+
+        connectivity = (u_seg == v_seg) * valid_mask
         connectivity = logit(connectivity)
         #connectivity = torch.softmax(connectivity, dim = -1)
         #y_true = connectivity / connectivity.max(-1, keepdim = True)[0]
