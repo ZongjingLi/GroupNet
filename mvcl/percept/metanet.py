@@ -158,7 +158,7 @@ class MetaNet(nn.Module):
         all_logits = []
         all_sample_inds = []
         loss = 0.0
-        num_long_range = 1
+        num_long_range = 4
         for stride in range(1, self.supervision_level+1):
             indices = getattr(self,f"indices_{W//stride}x{H//stride}").repeat(B,1,1).long()
             v_indices = torch.cat([
@@ -223,7 +223,6 @@ class MetaNet(nn.Module):
         v_seg = torch.gather(segment_targets, 1, v_indices)
 
         """Calculate the true connecivity between pairs of indices"""
-        import matplotlib.pyplot as plt
         valid_mask = u_seg != 0
 
         #u_seg = u_seg != 0

@@ -12,7 +12,6 @@ import time
 from torch_sparse import SparseTensor
 import matplotlib.pyplot as plt
 
-
 class GraphPropagation(nn.Module):
     def __init__(self,
                  num_iters=32,
