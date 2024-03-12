@@ -9,7 +9,7 @@ from datasets.playroom_dataset import PlayroomDataset, DataLoader
 from torchvision import transforms
 
 dataset = PlayroomDataset(True)
-loader = DataLoader(dataset, batch_size = 1, shuffle = True)
+loader = DataLoader(dataset, batch_size = 1, shuffle = False)
 for sample in loader:
     sample;break;
 
@@ -20,7 +20,7 @@ W, H ,C  = 128,128,3
 resolution = (W, H, C)
 
 GPM = GraphPropagation(num_iters = 132, inhibit=1, excite=1, project=0, adj_thresh = 0.5)
-extractor = Competition(num_masks = 10, mask_thresh=0.5, mask_beta = 10, num_competition_rounds=10)
+extractor = Competition(num_masks = 32, mask_thresh=0.5, mask_beta = 10, num_competition_rounds=3)
 
 K = 25; D = 32
 num_long_range = 1024 - K**2
@@ -90,6 +90,7 @@ def inference(sample_inds, segment_targets):
     v_seg = torch.gather(segment_targets, 1, v_indices)
 
     connectivity = ((u_seg == v_seg).float()) #* ((u_seg != 0).float())
+
     connectivity = connectivity / (torch.sum(connectivity, dim = -1, keepdim = True) + 1e-9)
 
     connectivity = logit(connectivity)
