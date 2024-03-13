@@ -22,13 +22,13 @@ model_record2 = "wood_chair"
 full_library = ModelLibrarian("models_core.json")
 model_record = full_library.get_record("sink_cabinet_unit_wood_beech_honey_chrome_composite")
 #model_record2 = "sink_cabinet_unit_wood_beech_honey_chrome_composite"
-model_record2 = full_library.get_record("molteni_turner_sofa")
-model_record3 = full_library.get_record("b04_banana")
-model_record4 = full_library.get_record("toaster_002")
-model_record5 = full_library.get_record("teatray")
+model_record2 = full_library.get_record("b05_dacor_double_wall_oven")
+model_record3 = full_library.get_record("b04_orange_00")
+
+model_record5 = full_library.get_record("skillet_closed")
 
 dx = 0.0
-dz = 0.2
+dz = 0.3
 
 commands = [TDWUtils.create_empty_room(12, 12),
             #TDWUtils.create_room_from_image("/Users/melkor/Downloads/1.jpg"),
@@ -38,7 +38,7 @@ commands = [TDWUtils.create_empty_room(12, 12),
                             object_id = object_id),
 
             c.get_add_object(model_name = model_record2.name,
-                             position = {"x": -0.7, "y": 0, "z": -0.3},
+                             position = {"x": -0.7, "y": 0, "z": 0.3},
                              #library = "models_flex.json",
                              object_id = object_id2),
 
@@ -47,30 +47,16 @@ commands = [TDWUtils.create_empty_room(12, 12),
                             #library = "models_flex.json",
                             object_id = object_id3),
 
-            c.get_add_object(model_name = model_record4.name,
-                            position = {'x':1.1 + dx, 'y':1.0, 'z':+0.4 + dz},
+
+            c.get_add_object(model_name = model_record5.name,
+                            position = {'x':1.1 + dx, 'y':1.0, 'z':+0.6 + dz},
                             #library = "models_flex.json",
-                            object_id = object_id4),
-
-
-            {"$type": "add_object",
-                                  "name": model_record5.name,
-                                  "position" : {'x':1.1 + dx, 'y':1.0, 'z':+0.7 + dz},
-                                  "url": model_record5.get_url(),
-                                  "scale_factor": 0.6,
-                                  "rotation": model_record5.canonical_rotation,
-                                  "id": object_id5}
-            ,
+                            object_id = object_id5),
             c.get_add_material(material_name=material_name),
 
                              ]
 
 """
-            c.get_add_object(model_name = model_record5.name,
-                            position = {'x':1.1 + dx, 'y':1.0, 'z':+0.6 + dz},
-                            #library = "models_flex.json",
-                            object_id = object_id5),
-
             c.get_add_object(model_name = "cabinet_36_wall_wood_beech_honey_composite",
                             position = {"x": -0.7, 'y': .0, 'z':0.6},
                             object_id = c.get_unique_id()),
@@ -90,7 +76,7 @@ commands.extend([
     ]
 )
                              
-commands.extend(TDWUtils.create_avatar(position={"x": 1.6, "y": 1.6, "z": 1.9},
+commands.extend(TDWUtils.create_avatar(position={"x": 1.8, "y": 1.6, "z": 1.8},
                                        avatar_id="a",
                                        look_at={"x": -0.0, "y": -0.0, "z": 0.2}))
 
@@ -106,6 +92,7 @@ resp = c.communicate(commands)
 output_directory = str(Path.cwd().joinpath("datasets/ExampleImages"))
 print(f"Images will be saved to: {output_directory}")
 
+#resolution = (512,512)
 for i in range(len(resp) - 1):
     r_id = OutputData.get_data_type_id(resp[i])
     # Get Images output data.
@@ -113,6 +100,5 @@ for i in range(len(resp) - 1):
         images = Images(resp[i])
         # Determine which avatar captured the image.
         if images.get_avatar_id() == "a":
-            TDWUtils.save_images(images=images, filename="2", output_directory=output_directory)
+            TDWUtils.save_images(images=images, filename="4", output_directory=output_directory)
 c.communicate({"$type": "terminate"})
-

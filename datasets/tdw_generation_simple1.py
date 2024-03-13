@@ -25,7 +25,7 @@ model_record = full_library.get_record("dining_room_table")
 model_record2 = full_library.get_record("molteni_turner_sofa")
 model_record3 = full_library.get_record("apple")
 model_record4 = full_library.get_record("orange")
-model_record5 = full_library.get_record("b04_banana")
+model_record5 = full_library.get_record("teakettle_01")
 
 commands = [TDWUtils.create_empty_room(12, 12),
             #TDWUtils.create_room_from_image("/Users/melkor/Downloads/1.jpg"),

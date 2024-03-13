@@ -22,10 +22,10 @@ model_record2 = "wood_chair"
 full_library = ModelLibrarian("models_core.json")
 model_record = full_library.get_record("sink_cabinet_unit_wood_beech_honey_chrome_composite")
 #model_record2 = "sink_cabinet_unit_wood_beech_honey_chrome_composite"
-model_record2 = full_library.get_record("molteni_turner_sofa")
-model_record3 = full_library.get_record("b04_bowl_smooth")
-model_record4 = full_library.get_record("toaster_002")
-model_record5 = full_library.get_record("b04_banana")
+model_record2 = full_library.get_record("b05_dacor_double_wall_oven")
+model_record3 = full_library.get_record("b04_orange_00")
+
+model_record5 = full_library.get_record("skillet_closed")
 
 dx = 0.0
 dz = 0.3
@@ -38,7 +38,7 @@ commands = [TDWUtils.create_empty_room(12, 12),
                             object_id = object_id),
 
             c.get_add_object(model_name = model_record2.name,
-                             position = {"x": -0.7, "y": 0, "z": -0.3},
+                             position = {"x": -0.7, "y": 0, "z": 0.3},
                              #library = "models_flex.json",
                              object_id = object_id2),
 
@@ -47,10 +47,6 @@ commands = [TDWUtils.create_empty_room(12, 12),
                             #library = "models_flex.json",
                             object_id = object_id3),
 
-            c.get_add_object(model_name = model_record4.name,
-                            position = {'x':1.1 + dx, 'y':1.0, 'z':+0.4 + dz},
-                            #library = "models_flex.json",
-                            object_id = object_id4),
 
             c.get_add_object(model_name = model_record5.name,
                             position = {'x':1.1 + dx, 'y':1.0, 'z':+0.6 + dz},
@@ -80,7 +76,7 @@ commands.extend([
     ]
 )
                              
-commands.extend(TDWUtils.create_avatar(position={"x": 1.7, "y": 1.6, "z": 1.6},
+commands.extend(TDWUtils.create_avatar(position={"x": 1.8, "y": 1.6, "z": 1.8},
                                        avatar_id="a",
                                        look_at={"x": -0.0, "y": -0.0, "z": 0.2}))
 
@@ -96,6 +92,7 @@ resp = c.communicate(commands)
 output_directory = str(Path.cwd().joinpath("datasets/ExampleImages"))
 print(f"Images will be saved to: {output_directory}")
 
+#resolution = (512,512)
 for i in range(len(resp) - 1):
     r_id = OutputData.get_data_type_id(resp[i])
     # Get Images output data.
