@@ -25,7 +25,7 @@ argparser.add_argument("--expr_name",                   default = "KFT-UNet")
 argparser.add_argument("--dataset_dir",                 default = dataset_dir)
 # [Experiment configuration]
 argparser.add_argument("--domain_name",                 default = "demo")
-argparser.add_argument("--mode",                        default = "train")
+argparser.add_argument("--mode",                        default = "null")
 argparser.add_argument("--dataset_name",                default = "sprites_base")
 
 # [Training detail configurations]
@@ -62,6 +62,7 @@ model = build_custom(model, domain.domain_name)
 if args.load_ckpt_percept: model.perception.load_state_dict(torch.load(args.load_ckpt_percept))
 if args.load_ckpt_knowledge: model.central_executor.load_state_dict(torch.load(args.load_ckpt_knowledge))
 
+print(f"{args.mode}")
 if args.mode == "train":
     train(model, config, args)
 if args.mode == "eval":
