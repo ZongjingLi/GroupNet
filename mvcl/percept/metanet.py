@@ -110,7 +110,9 @@ class MetaNet(nn.Module):
 
         """local indices plus long range indices"""
         supervision_level = 1
-        K = 5 # the local window size ( window size of [n x n])
+        K = 5
+        self.K = K
+         # the local window size ( window size of [n x n])
         self.supervision_level = supervision_level
         for stride in range(1, supervision_level + 1):
             locals = generate_local_indices([W,H], K)
@@ -125,7 +127,8 @@ class MetaNet(nn.Module):
         kq_dim = 132
         self.ks_map = nn.Linear(latent_dim, kq_dim)
         self.qs_map = nn.Linear(latent_dim, kq_dim)
- 
+        self.num_long_range = 1024 - K**2
+
     def forward(self, ims, target_masks = None, lazy = True):
         """
         Args:
@@ -158,7 +161,7 @@ class MetaNet(nn.Module):
         all_logits = []
         all_sample_inds = []
         loss = 0.0
-        num_long_range = 4
+        num_long_range = self.num_long_range
         for stride in range(1, self.supervision_level+1):
             indices = getattr(self,f"indices_{W//stride}x{H//stride}").repeat(B,1,1).long()
             v_indices = torch.cat([
@@ -199,13 +202,14 @@ class MetaNet(nn.Module):
             all_logits.append(util_logits)
         
         """Compute segments by extracting the connected components"""
-        masks, agents, alive = self.compute_masks(all_logits[0],all_sample_inds[0])
+        masks, agents, alive, propmaps = self.compute_masks(all_logits[0],all_sample_inds[0])
         
         outputs["loss"] = loss
         outputs["masks"] = masks
         outputs["alive"] = alive
         outputs["all_logits"] = all_logits
         outputs["features"] = conv_features
+        outputs["prop_maps"] = propmaps
 
         del all_sample_inds
         return outputs
@@ -248,6 +252,8 @@ class MetaNet(nn.Module):
 
         return loss, y_pred
     
+
+    
     def compute_masks(self, logits, indices, prop_dim = 128):
         W, H = self.W, self.H
         B, N, K = logits.shape
@@ -263,7 +269,7 @@ class MetaNet(nn.Module):
         adj = local_to_sparse_global_affinity(adj, indices, sparse_transpose = True)
         
         """propagate random normal latent features by the connection graph"""
-        prop_map = self.propagator(h0.detach(), adj.detach())[-1]
-        prop_map = prop_map.reshape([B,W,H,D])
+        prop_maps = self.propagator(h0.detach(), adj.detach())
+        prop_map = prop_maps[-1].reshape([B,W,H,D])
         masks, agents, alive, phenotypes, _ = self.competition(prop_map)
-        return masks, agents, alive
+        return masks, agents, alive, prop_maps
