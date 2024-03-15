@@ -70,6 +70,27 @@ class ShapeMapper(nn.Module):
         EPS = 7.
         return torch.tanh(EPS * outputs)#torch.tanh(self.fc1(outputs)) * 3.
 
+class ObjectAffinityFeatures(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super().__init__()
+        assert input_dim % 2 == 0,"input dim should be divisble by 2 as it is a pair of patches features"
+
+class ColorAffinityFeatures(nn.Module):
+    def __init__(self,input_dim, output_dim):
+        super().__init__()
+        assert input_dim % 2 == 0, "input dim should be divisble by 2 as it is a pair of patches features"
+    
+    def forward(self, x):
+        return x
+
+class CategoryAffinityFeatures(nn.Module):
+    def __init__(self,input_dim, output_dim):
+        super().__init__()
+        assert input_dim % 2 == 0, "input dim should be divisible by 2 as it is a pair of patchs features"
+    
+    def forward(self, x):
+        return x
+
 def build_demo_domain(model):
     from .primitives import Primitive
     model.implementations["universal"] = IdMap()#UnivseralMapper(4,132)

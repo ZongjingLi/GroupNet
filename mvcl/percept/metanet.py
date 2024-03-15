@@ -92,6 +92,7 @@ class MetaNet(nn.Module):
         super().__init__()
         self.config = config
         device = config.device
+        self.device = device
         num_prop_itrs = 72
         num_masks = config.max_num_masks
         W, H = config.resolution
@@ -138,7 +139,6 @@ class MetaNet(nn.Module):
             masks:
             connections:
         """
-        device = ims.device
         if not lazy:assert len(ims.shape) == 4,"need to process with batch"
         elif len(ims.shape) == 3: ims = ims.unsqueeze(0)
         outputs = {}
@@ -161,22 +161,10 @@ class MetaNet(nn.Module):
         all_logits = []
         all_sample_inds = []
         loss = 0.0
-        num_long_range = self.num_long_range
+
         for stride in range(1, self.supervision_level+1):
-            indices = getattr(self,f"indices_{W//stride}x{H//stride}").repeat(B,1,1).long()
-            v_indices = torch.cat([
-                indices, torch.randint(H * W, [B, H*W, num_long_range])
-            ], dim = -1).unsqueeze(0)
-
-            _, B, N, K = v_indices.shape # K as the number of local indices at each grid location
-
-            """Gather batch-wise indices and the u,v local features connections"""
-            u_indices = torch.arange(W * H).reshape([1,1,W*H,1]).repeat(1,B,1,K)
-            batch_inds = torch.arange(B).reshape([1,B,1,1]).repeat(1,1,H*W,K).to(device)
-
-            indices = torch.cat([
-                batch_inds, u_indices, v_indices
-            ], dim = 0)
+            indices = self.get_indices([W,H], B, stride)
+            _, B, N, K = indices.shape
             # [3, B, N, K]
 
             """Gather ther the edge features for each pair of x,y"""
@@ -213,6 +201,26 @@ class MetaNet(nn.Module):
 
         del all_sample_inds
         return outputs
+    
+    def get_indices(self,resolution = (128,128), B = 1, stride = 1, num_long_range = None):
+        W, H = resolution
+        device = self.device
+        if num_long_range is None: num_long_range = self.num_long_range
+        indices = getattr(self,f"indices_{W//stride}x{H//stride}").repeat(B,1,1).long()
+        v_indices = torch.cat([
+                indices, torch.randint(H * W, [B, H*W, num_long_range])
+            ], dim = -1).unsqueeze(0)
+
+        _, B, N, K = v_indices.shape # K as the number of local indices at each grid location
+
+        """Gather batch-wise indices and the u,v local features connections"""
+        u_indices = torch.arange(W * H).reshape([1,1,W*H,1]).repeat(1,B,1,K)
+        batch_inds = torch.arange(B).reshape([1,B,1,1]).repeat(1,1,H*W,K).to(device)
+
+        indices = torch.cat([
+                batch_inds, u_indices, v_indices
+            ], dim = 0)
+        return indices
     
     def compute_loss(self,logits, sample_inds, target_masks, size = None):
         if size is None: size = [self.W, self.H]

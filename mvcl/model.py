@@ -55,9 +55,20 @@ class MetaVisualLearner(nn.Module):
             if map_name == name: return self.implementations[map_name]
         assert False, f"there is no such mapper {name}"
     
+    def precompute_concept_features(self, indices):
+        """calculate the concept affinities A^c_{i,j}
+        Inputs:
+            indices:
+        Returns:
+            a diction that corresponds different concept affinities.
+        """
+        return 
+    
     def get_concept_embedding(self, name):return self.central_executor.get_concept_embedding(name)
     
     def entailment(self,c1, c2): 
+        """return the entailment probability of c1->c2.
+        """
         if isinstance(c2, str):
             parent_type = self.central_executor.get_type(c2)
             values = self.central_executor.type_constraints[parent_type]
@@ -70,7 +81,7 @@ class MetaVisualLearner(nn.Module):
             return logit(masks[:, :, values.index(c2)])
         #return self.central_executor.entailment(c1,c2)
     
-    def segment(self, boolean_map, base_feature_map):
+    def segment(self, indices,  affinities):
         scores = 1
         masks = 1
         return scores, masks

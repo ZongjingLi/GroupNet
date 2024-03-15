@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import imageio
 from skimage import img_as_ubyte
 
-shuffle = False
+shuffle = True
 domain_parser = Domain("mvcl/base.grammar")
 
 meta_domain_str = f"""
@@ -84,18 +84,9 @@ locals = getattr(metapercept.perception, f"indices_{W}x{H}").repeat(B,1,1).long(
 # calculate the localized connections between local graphs.
 segment_targets = masks
 
-indices = locals
-v_indices = torch.cat([
-                indices, torch.randint(H * W, [B, H*W, num_long_range])
-            ], dim = -1).unsqueeze(0)
-_, B, N, K = v_indices.shape # K as the number of local indices at each grid location
-"""Gather batch-wise indices and the u,v local features connections"""
-u_indices = torch.arange(W * H).reshape([1,1,W*H,1]).repeat(1,B,1,K)
-batch_inds = torch.arange(B).reshape([1,B,1,1]).repeat(1,1,H*W,K)
-sample_inds = torch.cat([
-                batch_inds, u_indices, v_indices
-            ], dim = 0)
-            # [3, B, N, K]
+
+sample_inds = metapercept.perception.get_indices([W,H])
+
 
 # calculate logits of for the connection logits
 segment_targets = segment_targets.reshape([B,N]).unsqueeze(-1).long().repeat(1,1, sample_inds.shape[-1])
@@ -106,11 +97,11 @@ v_seg = torch.gather(segment_targets, 1, v_indices)
 connects = ((u_seg == v_seg).float())
 logits = logit( connects / (torch.sum(connects, dim = -1, keepdim = True) + 1e-9) )
 
-D = 32
+D = 64
 # calculate the masks and prop plateaus maps
 masks, agents, alive, prop_maps = metapercept.perception.compute_masks(logits, sample_inds, prop_dim = D)
 
-images = [(img_as_ubyte(pmap.reshape(W,H,D)[:,:,-4])) for pmap in prop_maps]
+images = [(img_as_ubyte(pmap.reshape(W,H,D)[:,:,-3])) for pmap in prop_maps]
 imageio.mimsave('outputs/props.gif', images, duration=0.1)
 
 # save the masks extracted on the plateau map
