@@ -19,6 +19,12 @@ from rinarak.dklearn.cv.unet import UNet
 from rinarak.utils.tensor import gather_tensor, stats_summary, weighted_softmax, logit
 from torch_sparse import SparseTensor
 
+def weighted_softmax(x, weight):
+    maxes = torch.max(x, -1, keepdim=True)[0]
+    x_exp = torch.exp(x - maxes)
+    x_exp_sum = (torch.sum(x_exp * weight, -1, keepdim=True) + 1e-12)
+    return (x_exp / x_exp_sum) * weight
+
 def generate_local_indices(img_size, K, padding = 'constant'):
     H, W = img_size
     indice_maps = torch.arange(H * W).reshape([1, 1, H, W]).float()
@@ -111,7 +117,7 @@ class MetaNet(nn.Module):
 
         """local indices plus long range indices"""
         supervision_level = 1
-        K = 5
+        K = 7
         self.K = K
          # the local window size ( window size of [n x n])
         self.supervision_level = supervision_level
@@ -124,13 +130,13 @@ class MetaNet(nn.Module):
         """graph propagation on the grid and masks extraction"""
         self.propagator = GraphPropagation(num_iters = num_prop_itrs)
         self.competition = Competition(num_masks = num_masks)
-        
+
         kq_dim = 132
         self.ks_map = nn.Linear(latent_dim, kq_dim)
         self.qs_map = nn.Linear(latent_dim, kq_dim)
-        self.num_long_range = 1024 - K**2
+        self.num_long_range = int(7 * 7 * 0.2)
 
-    def forward(self, ims, target_masks = None, lazy = True):
+    def forward(self, ims, affinity_calculator, key = None, target_masks = None, lazy = True):
         """
         Args:
             ims: the image batch send to calculate the
@@ -143,20 +149,6 @@ class MetaNet(nn.Module):
         elif len(ims.shape) == 3: ims = ims.unsqueeze(0)
         outputs = {}
         B, C, W, H = ims.shape
-        """Convolution on images and produce the general purpose feature [BxDxWxH]"""
-        conv_features = self.backbone(ims)
-        conv_features = torch.nn.functional.normalize(conv_features, dim = -1, p = 2)
-        conv_features = conv_features.permute(0,2,3,1)
-        B, W, H, D = conv_features.shape
-
-        """Sample local indices and long range utils"""
-        flatten_features = conv_features.reshape([B,W*H,D])
-        flatten_features = torch.cat([
-            flatten_features, # [BxNxD]
-            torch.zeros([B,1,D]), # [Bx1xD]
-        ], dim = 1) # to add a pad feature to the edge case
-        flatten_ks = self.ks_map(flatten_features)
-        flatten_qs = self.qs_map(flatten_features)
 
         all_logits = []
         all_sample_inds = []
@@ -166,26 +158,16 @@ class MetaNet(nn.Module):
             indices = self.get_indices([W,H], B, stride)
             _, B, N, K = indices.shape
             # [3, B, N, K]
+            affinity_features = affinity_calculator.calculate_affinity_feature(indices, ims)
+            logits = affinity_calculator.calculate_entailment_logits(affinity_features, key)
 
-            """Gather ther the edge features for each pair of x,y"""
-            x_indices = indices[[0,1],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D)
-            y_indices = indices[[0,2],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D)
-
-            x_features = torch.gather(flatten_ks, dim = 1, index = x_indices)
-            y_features = torch.gather(flatten_qs, dim = 1, index = y_indices)
-
-            """Calculate the logits between each node pairs"""
-
-            logits = (x_features * y_features).sum(dim = -1) * (D ** -0.5)
-            #logits = 0.3 * ( (x_features.long() == 1.) .sum(dim = -1) ) .float()
-
-            logits = logits.reshape([B,N,K])
-
-            #all_logits.append(logits)
             all_sample_inds.append(indices)
 
-
-            stride_loss, util_logits = self.compute_loss(logits,indices,target_masks,[W,H])
+            if target_masks is None:
+                stride_loss = 0.0
+                util_logits = logits
+            else:
+                stride_loss, util_logits = self.compute_loss(logits,indices,target_masks,[W,H])
             loss += stride_loss
             all_logits.append(util_logits)
         
@@ -196,7 +178,6 @@ class MetaNet(nn.Module):
         outputs["masks"] = masks
         outputs["alive"] = alive
         outputs["all_logits"] = all_logits
-        outputs["features"] = conv_features
         outputs["prop_maps"] = propmaps
 
         del all_sample_inds
@@ -223,46 +204,47 @@ class MetaNet(nn.Module):
         return indices
     
     def compute_loss(self,logits, sample_inds, target_masks, size = None):
+        if len(target_masks.shape) == 3: target_masks = target_masks.unsqueeze(1)
         if size is None: size = [self.W, self.H]
         B, N, K = logits.shape
+
         segment_targets = F.interpolate(target_masks.float(), size, mode='nearest')
-  
+
         segment_targets = segment_targets.reshape([B,N]).unsqueeze(-1).long().repeat(1,1,K)
-        u_indices = sample_inds[1,...]
-        v_indices = sample_inds[2,...]
+        if sample_inds is not None:
+            samples = torch.gather(segment_targets,1, sample_inds[2,...]).squeeze(-1)
+        else:
+            samples = segment_targets.permute(0, 2, 1)
 
-        u_seg = torch.gather(segment_targets, 1, u_indices)
-        v_seg = torch.gather(segment_targets, 1, v_indices)
+        targets = segment_targets == samples
+        null_mask = (segment_targets == 0) # & (samples == 0)  only mask the rows
+        mask = 1 - null_mask.float()
 
-        """Calculate the true connecivity between pairs of indices"""
-        valid_mask = u_seg != 0
 
-        #u_seg = u_seg != 0
-        #v_seg = v_seg != 0
+        # [compute log softmax on the logits] (F.kl_div requires log prob for pred)
+        y_pred = weighted_softmax(logits, mask)
 
-        connectivity = (u_seg == v_seg) * valid_mask
-        connectivity = logit(connectivity)
-        #connectivity = torch.softmax(connectivity, dim = -1)
-        #y_true = connectivity / connectivity.max(-1, keepdim = True)[0]
-        
-        y_true = connectivity
-        """strength of connecitcity logits by prediction"""
-        y_pred = logits
+
+        y_pred = torch.log(y_pred.clamp(min=1e-8))  # log softmax
+
+        # [compute the target probabilities] (F.kl_div requires prob for target)
+        y_true = targets / (torch.sum(targets, -1, keepdim=True) + 1e-9)
 
         # [compute kl divergence]
-        #kl_div = F.kl_div(y_pred, y_true, reduction='none') * 1.0
-        #kl_div = F.binary_cross_entropy_with_logits(y_pred, y_true, reduction = "mean")
-        kl_div = F.mse_loss(y_pred, y_true,"mean")
+        kl_div = F.kl_div(y_pred, y_true, reduction='none') * mask
         kl_div = kl_div.sum(-1)
 
         # [average kl divergence aross rows with non-empty positive / negative labels]
-        loss = kl_div
+        agg_mask = (mask.sum(-1) > 0).float()
+        loss = kl_div.sum() / (agg_mask.sum() + 1e-9)
+
+
 
         return loss, y_pred
     
 
     
-    def compute_masks(self, logits, indices, prop_dim = 128):
+    def compute_masks(self, logits, indices, prop_dim = 64):
         W, H = self.W, self.H
         B, N, K = logits.shape
         D = prop_dim

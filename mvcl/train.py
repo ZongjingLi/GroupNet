@@ -23,11 +23,12 @@ from mvcl.primitives import Primitive
 
 from datasets.sprites_base_dataset import SpritesBaseDataset
 from datasets.sprites_meta_dataset import SpritesMetaDataset
-
+from datasets.playroom_dataset import PlayroomDataset
 
 dataset_map = {
     "sprites_base": SpritesBaseDataset,
     "sprites_meta": SpritesMetaDataset,
+    "Playroom":PlayroomDataset
 }
 
 def unfreeze(module):
@@ -54,6 +55,14 @@ def log_instance_masks(masks, alives):
         ax = fig.add_subplot(2,5,1+i);plt.axis('off')
         ax.imshow(masks[b,i,:,:] * alives[b,i])
     plt.savefig("outputs/predict_masks.png", bbox_inches='tight')
+
+def from_onehot_mask(one_hot_mask, size):
+    B, W, H = size
+    seg_masks = torch.zeros([B,W,H])
+    for i in range(int(one_hot_mask.max())):
+        seg_masks[one_hot_mask==i] = i;
+    seg_masks = seg_masks
+    return seg_masks
 
 def log_knowledge_grounding_info(questions, programs, answers, predict_answers, log_file = "outputs/logqa.txt"):
     with open(log_file,"w") as log_file:
@@ -186,21 +195,25 @@ def train(model, config, args):
             ims = sample["img"]
             masks = sample["masks"]
 
+            if ims.max() > 1.1: ims = ims / 256.
+            if len(masks.shape) == 3: masks 
+
             """train the perception module, extract masks"""
-            outputs = model.perception(ims, masks.long().unsqueeze(1))
+            outputs = model.group_concepts(ims, "object", target = masks)
+            #outputs = model.perception(ims, masks.long().unsqueeze(1))
             percept_loss = gather_loss(outputs)["loss"] / ims.shape[0] # gather loss in the perception module
             all_masks = outputs["masks"].permute(0,3,1,2)
             alives = outputs["alive"]
 
             # weird demo
-            all_masks = to_instance_masks(masks)
+            #all_masks = to_instance_masks(masks)
             alives = torch.ones(all_masks.shape[:2])
-            #print(all_masks.shape, alives.shape)
+
 
             """calculate loss for the knowledge grounding"""
             language_loss = 0.0 # intialize the knowledge training
-            backbone_features = model.implementations["universal"](ims)
             if not args.freeze_knowledge:
+                backbone_features = model.implementations["universal"](ims)
                 language_grounding_outputs = ground_knowledge(sample, all_masks, alives, backbone_features, model)
                 language_loss += language_grounding_outputs["loss"]
 
@@ -217,7 +230,7 @@ def train(model, config, args):
                 train_logger.critical(f"save the checkpoint at itrs:{itrs} h:{loss}")
                 torch.save(model.perception.state_dict(),f"{args.ckpt_dir}/{args.expr_name}_percept_backup.pth")
                 torch.save(model.central_executor.state_dict(),f"{args.ckpt_dir}/{args.expr_name}_knowledge_backup.pth")
-
+                torch.save(model.state_dict(), f"{args.ckpt_dir}/{args.expr_name}_backup.pth")
                 """Save the image and masks for visualization"""
                 log_gt_inputs(ims[0].permute(1,2,0), masks[0]) # only for the first batch
                 """Save the output masks predicted"""
@@ -229,9 +242,9 @@ def train(model, config, args):
                     answers = language_grounding_outputs["answers"]
                     predict_answers = language_grounding_outputs["predict_answers"]
                     log_knowledge_grounding_info(questions, programs, answers, predict_answers) # log the question answer grounding infos.
-
-                visualize_concept_maps("color", backbone_features[0].flatten(start_dim = 0, end_dim = 1), model)
-                visualize_concept_maps("shape", backbone_features[0].flatten(start_dim = 0, end_dim = 1), model)
+        
+                #visualize_concept_maps("color", backbone_features[0].flatten(start_dim = 0, end_dim = 1), model)
+                #visualize_concept_maps("shape", backbone_features[0].flatten(start_dim = 0, end_dim = 1), model)
 
             epoch_loss += float(loss) # add the current loss to the total loss
             sys.stdout.write(f"\repoch:{epoch+1} itrs:{itrs} loss:{loss} percept:{percept_loss} lang:{language_loss}\n")
@@ -242,6 +255,11 @@ def train(model, config, args):
     torch.save(model.central_executor.state_dict(),save_file.format("knowledge")) # save the torch parameters
     train_logger.critical(f"model training completed, saved at {save_file}")
 
+def train_gt_segment(model, config, args):
+    model = model.to(config.device)
+    set_output_file(f"logs/expr_{args.domain_name}_train.txt")
+    train_logger = get_logger("expr_train")
+    return 
 
 def evaluate(model, config, args):
     set_output_file(f"logs/{args.domain_name}_expr_eval.txt")

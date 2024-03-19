@@ -155,7 +155,7 @@ def generate_counts(language_annotations, scene_annotation, values):
         language_annotations["answers"].append(str(answer))
 
 def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", data_dir = "/Users/melkor/Documents/datasets"):
-    max_num_objs = 3
+    max_num_objs = 4
     resolution = resolution
     im_path = data_dir + "/sprites_env/base/{}/{}.png"
     mask_path = data_dir + "/sprites_env/base/{}/{}"

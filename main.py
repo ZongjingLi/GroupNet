@@ -21,18 +21,19 @@ import torch.nn as nn
 dataset_dir = "/Users/melkor/Documents/datasets"
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--expr_name",                   default = "KFT-UNet")
+argparser.add_argument("--expr_name",                   default = "KFT_KL0")
 argparser.add_argument("--dataset_dir",                 default = dataset_dir)
 # [Experiment configuration]
 argparser.add_argument("--domain_name",                 default = "demo")
-argparser.add_argument("--mode",                        default = "null")
+argparser.add_argument("--mode",                        default = "train")
 argparser.add_argument("--dataset_name",                default = "sprites_base")
 
 # [Training detail configurations]
 argparser.add_argument("--epochs",                      default = 1000)
-argparser.add_argument("--batch_size",                  default = 4)
+argparser.add_argument("--batch_size",                  default = 8)
 argparser.add_argument("--optimizer",                   default = "Adam")
-argparser.add_argument("--lr",                          default = 2e-4)
+argparser.add_argument("--lr",                          default = 5e-4)
+argparser.add_argument("--shuffle",                     default = True)
 
 # [Elaborated training details]
 argparser.add_argument("--freeze_perception",           default = False)
@@ -54,15 +55,16 @@ with open(f"domains/{args.domain_name}_domain.txt","r") as domain:
 domain = load_domain_string(meta_domain_str, domain_parser)
 
 # [Build the Model]
-args.load_ckpt_percept = "checkpoints/KFT_percept_backup.pth"
+#args.load_ckpt_percept = "checkpoints/KFT_percept_backup.pth"
 #args.load_ckpt_knowledge = "checkpoints/KFT_knowledge_backup.pth"
 model = MetaVisualLearner(domain, config)
-model = build_custom(model, domain.domain_name)
+model = build_custom(model, config, domain.domain_name)
+#model.load_state_dict(torch.load("checkpoints/KFT_backup.pth"))
 
 if args.load_ckpt_percept: model.perception.load_state_dict(torch.load(args.load_ckpt_percept))
 if args.load_ckpt_knowledge: model.central_executor.load_state_dict(torch.load(args.load_ckpt_knowledge))
 
-print(f"{args.mode}")
+
 if args.mode == "train":
     train(model, config, args)
 if args.mode == "eval":

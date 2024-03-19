@@ -7,89 +7,88 @@
 '''
 import torch
 import torch.nn as nn
+from abc import ABC, abstractmethod
 from rinarak.dklearn.nn.mlp import FCBlock
 from rinarak.dklearn.cv.unet import UNet
+from mvcl.percept.backbones import ResidualDenseNetwork
 import math
 
-class UnivseralMapper(nn.Module):
-    def __init__(self,input_dim,output_dim):
-        super().__init__()
-        latent_dim = 100
-        self.conv1 = nn.Conv2d(input_dim,latent_dim,3,1,1)
-        self.conv2 = nn.Conv2d(latent_dim,latent_dim,3,1,1)
-        self.fc1 = FCBlock(latent_dim,2,100,output_dim)
-    def forward(self, x):
-        x = self.conv1(x)
-        outputs = self.conv2(x)
-        return self.fc1(outputs.permute(0,2,3,1))
-    
-class IdMap(nn.Module):
+class AffinityCalculator(nn.Module, ABC):
     def __init__(self):
         super().__init__()
-    def forward(self, x):
-        return x.permute(0,2,3,1)
-
-class ColorMapper(nn.Module):
-    def __init__(self,input_dim,output_dim):
-        super().__init__()
-        latent_dim = 100
-        self.conv = nn.Conv2d(input_dim,latent_dim,3,1,1)
-        self.fc1 = FCBlock(100,2,latent_dim,output_dim)
     
-    def forward(self, x):
-        if len(x.shape) == 2:
-            N, D = x.shape
-            W = H = int(math.sqrt(N))
-            x = x.reshape([1,W,H,D])
-        if len(x.shape) == 3:
-            B, N, D = x.shape
-            W = H = int(math.sqrt(N))
-            x = x.reshape([B,W,H,D])
-        x = x.permute(0,3,1,2)
-        outputs = self.conv(x).flatten(start_dim = -2,end_dim = -1).permute(0,2,1)
-        return torch.tanh(self.fc1(outputs)) * 3.
-
-class ShapeMapper(nn.Module):
-    def __init__(self,input_dim,output_dim):
-        super().__init__()
-        latent_dim = 100
-        self.conv =UNet(input_dim, latent_dim)
-        #self.fc1 = FCBlock(100,2,latent_dim,output_dim)
+    @abstractmethod
+    def calculate_affinity_feature(self, indices, img, augument_feature = None):
+        """ take the img as input (optional augument feature) as output the joint feature of the affinities"""
     
-    def forward(self, x):
-        if len(x.shape) == 2:
-            N, D = x.shape
-            W = H = int(math.sqrt(N))
-            x = x.reshape([1,W,H,D])
-        if len(x.shape) == 3:
-            B, N, D = x.shape
-            W = H = int(math.sqrt(N))
-            x = x.reshape([B,W,H,D])
-        x = x.permute(0,3,1,2)
-        outputs = self.conv(x).flatten(start_dim = -2,end_dim = -1).permute(0,2,1)
-        EPS = 7.
-        return torch.tanh(EPS * outputs)#torch.tanh(self.fc1(outputs)) * 3.
+    @abstractmethod
+    def calculate_entailment_logits(self, logits_features):
+        """ take the joint affinity feature as input and output the logits connectivity"""
 
-class ObjectAffinityFeatures(nn.Module):
-    def __init__(self, input_dim, output_dim):
+class ObjectAffinityFeatures(AffinityCalculator):
+    def __init__(self, input_dim,  latent_dim):
         super().__init__()
-        assert input_dim % 2 == 0,"input dim should be divisble by 2 as it is a pair of patches features"
+        kq_dim = 132
+        #assert input_dim % 2 == 0,"input dim should be divisble by 2 as it is a pair of patches features"
+        self.backbone = ResidualDenseNetwork(latent_dim, n_colors = input_dim)
+        self.ks_map = nn.Linear(latent_dim, kq_dim)
+        self.qs_map = nn.Linear(latent_dim, kq_dim)
 
-class ColorAffinityFeatures(nn.Module):
+    def calculate_affinity_feature(self, indices, img, augument_feature = None):
+        _, B, N, K = indices.shape
+
+        conv_features = self.backbone(img)
+        conv_features = torch.nn.functional.normalize(conv_features, dim = -1, p = 2)
+        conv_features = conv_features.permute(0,2,3,1)
+        B, W, H, D = conv_features.shape
+
+        flatten_features = conv_features.reshape([B,W*H,D])
+        flatten_features = torch.cat([
+            flatten_features, # [BxNxD]
+            torch.zeros([B,1,D]), # [Bx1xD]
+        ], dim = 1) # to add a pad feature to the edge case
+        flatten_ks = self.ks_map(flatten_features)
+        flatten_qs = self.qs_map(flatten_features)
+
+
+        x_indices = indices[[0,1],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D)
+        y_indices = indices[[0,2],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D)
+
+        # gather image features and flatten them into 1dim features
+        x_features = torch.gather(flatten_ks, dim = 1, index = x_indices)
+        y_features = torch.gather(flatten_qs, dim = 1, index = y_indices)
+        
+        x_features = x_features.reshape([B, N, K, D])
+        y_features = y_features.reshape([B, N, K, D])
+        #rint(x_features.shape, y_features.shape)
+        return torch.cat([x_features, y_features], dim = -1)
+    
+    def calculate_entailment_logits(self, logits_features, key = None):
+        B, N, K, D = logits_features.shape
+        assert D % 2 == 0, "not a valif feature dim"
+        DC = D // 2
+        x_features = logits_features[:,:,:,:DC]
+        y_features = logits_features[:,:,:,DC:]
+        logits = (x_features * y_features).sum(dim = -1) * (DC ** -0.5)
+        logits = logits.reshape([B, N, K])
+        return logits
+
+class ColorAffinityFeatures(AffinityCalculator):
     def __init__(self,input_dim, output_dim):
         super().__init__()
         assert input_dim % 2 == 0, "input dim should be divisble by 2 as it is a pair of patches features"
     
-    def forward(self, x):
-        return x
-
-class CategoryAffinityFeatures(nn.Module):
+class CategoryAffinityFeatures(AffinityCalculator):
     def __init__(self,input_dim, output_dim):
         super().__init__()
         assert input_dim % 2 == 0, "input dim should be divisible by 2 as it is a pair of patchs features"
+
     
-    def forward(self, x):
-        return x
+class TextureAffinityFeatures(AffinityCalculator):
+    def __init__(self,input_dim, output_dim):
+        super().__init__()
+        assert input_dim % 2 == 0, "input dim should be divisible by 2 as it is a pair of patchs features"
+
 
 def build_demo_domain(model):
     from .primitives import Primitive
@@ -112,6 +111,12 @@ def build_line_demo_domain(model):
     color.value = lambda x: {**x, "features": x["model"].get_mapper("color")(x["features"])}
     return model
 
-def build_custom(model, domain_name):
-    if domain_name == "demo": return build_demo_domain(model)
-    if domain_name == "line_demo": return build_line_demo_domain(model)
+def build_meta_domain(model, config):
+    model.implementations["object"] = ObjectAffinityFeatures(config.channel_dim, 128)
+    return model
+
+def build_custom(model, config, domain_name):
+    print(config.resolution)
+    #if domain_name == "demo": return build_demo_domain(model)
+    #if domain_name == "line_demo": return build_line_demo_domain(model)
+    if domain_name == "MetaLearn": return build_meta_domain(model, config)

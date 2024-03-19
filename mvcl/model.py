@@ -12,26 +12,9 @@ import torch.nn.functional as F
 
 from .config import *
 
-class SetNet(nn.Module):
-    def __init__(self,config):
-        super().__init__()
-        latent_dim = 128
-        self.fc0 = nn.Linear(config.channel_dim, latent_dim)
-        self.fc1 = nn.Linear(latent_dim, config.object_dim)
-        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    
-    def forward(self, x, end = None):
-        x = self.fc0(x)
-        x = nn.functional.relu(x)
-        x = self.fc1(x)
-        x = nn.functional.relu(x)
-        end = logit(torch.ones(x.shape[1]).to(self.device))
-        return end, x
-
 model_dict = {
     "MetaNet": MetaNet,
     "PropNet": None,
-    "SetNet": SetNet
 }
 
 class MetaVisualLearner(nn.Module):
@@ -81,10 +64,16 @@ class MetaVisualLearner(nn.Module):
             return logit(masks[:, :, values.index(c2)])
         #return self.central_executor.entailment(c1,c2)
     
+    def group_concepts(self, img, concept, key = None, target = None):
+        affinity_calculator = self.implementations[concept]
+
+        outputs = self.perception(img, affinity_calculator, key, target_masks = target)
+
+        return outputs
+
     def segment(self, indices,  affinities):
-        scores = 1
-        masks = 1
-        return scores, masks
+        masks, agents, alive, propmaps = self.perception.compute_masks(affinities, indices)
+        return alive, masks
 
     def print_summary(self):
         summary_string = f"""

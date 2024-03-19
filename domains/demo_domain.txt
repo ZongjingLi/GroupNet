@@ -1,4 +1,4 @@
-(domain demo)
+(domain MetaLearn)
 (:type
     object - vector[float,100]
     position - vector[float,2]
