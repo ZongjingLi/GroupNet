@@ -169,7 +169,7 @@ if img.max() > 1.1: img = img / 256.
 seg_masks = from_onehot_mask(masks)
 
 metapercept.perception.propagator.num_iters = 132
-#metapercept.implementations.load_state_dict(torch.load("checkpoints/KL0_imps_backup.pth", map_location = device))
+metapercept.implementations.load_state_dict(torch.load("checkpoints/KL1_imps_backup.pth", map_location = device))
 #metapercept = torch.load("checkpoints/KL0_backup.ckpt", map_location = "cpu")
 
 outputs = metapercept.group_concepts(img, "object", target = None)
