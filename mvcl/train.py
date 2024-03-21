@@ -210,7 +210,8 @@ def train(model, config, args):
 
             # weird demo
             #all_masks = to_instance_masks(masks)
-            alives = torch.ones(all_masks.shape[:2])
+            
+            #alives = torch.ones(all_masks.shape[:2])
 
 
             """calculate loss for the knowledge grounding"""

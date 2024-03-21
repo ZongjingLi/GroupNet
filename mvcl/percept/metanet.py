@@ -165,11 +165,12 @@ class MetaNet(nn.Module):
 
             if target_masks is None:
                 stride_loss = 0.0
-                util_logits = logits
+                #stride_loss, util_logits = self.compute_loss(logits,indices,target_masks,[W,H])
+                #logits = logit(torch.softmax(logits, dim = -1))
             else:
                 stride_loss, util_logits = self.compute_loss(logits,indices,target_masks,[W,H])
             loss += stride_loss
-            all_logits.append(util_logits)
+            all_logits.append(logits)
         
         """Compute segments by extracting the connected components"""
         masks, agents, alive, propmaps = self.compute_masks(all_logits[0],all_sample_inds[0])
@@ -247,7 +248,7 @@ class MetaNet(nn.Module):
     
 
     
-    def compute_masks(self, logits, indices, prop_dim = 64):
+    def compute_masks(self, logits, indices, prop_dim = 32):
         W, H = self.W, self.H
         B, N, K = logits.shape
         D = prop_dim

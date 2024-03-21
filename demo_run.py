@@ -53,9 +53,10 @@ demo_logger.critical(f"domain string ({domain.domain_name}) loaded successfully.
 
 
 """Load the MetaVisual-Learner"""
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
 metapercept = MetaVisualLearner(domain, config)
 metapercept = build_custom(metapercept, config, "MetaLearn")
-metapercept.load_state_dict(torch.load("checkpoints/KFT_KL1_backup.pth"))
+metapercept.load_state_dict(torch.load("checkpoints/KL0_backup.pth", map_location = device))
 #metapercept.central_executor.load_state_dict(torch.load("checkpoints/KFT-UNet_knowledge_backup.pth"))
 demo_logger.critical("MetaVisualLearner created successfully.")
 demo_logger.critical(config)
@@ -124,7 +125,7 @@ D = 64
 masks, agents, alive, prop_maps = metapercept.perception.compute_masks(logits, sample_inds, prop_dim = D)
 
 def save_propmaps(prop_maps, name = "outputs/propmaps.gif"):
-    images = [(img_as_ubyte(pmap.reshape(W,H,64)[:,:,-3])) for pmap in prop_maps]
+    images = [(img_as_ubyte(pmap.reshape(W,H,-1)[:,:,-3])) for pmap in prop_maps]
     imageio.mimsave(name, images, duration=0.1)
 
 
@@ -150,7 +151,7 @@ for i in range(alive.shape[0]):
             im = torch.cat([im, comp_mask.unsqueeze(-1)], dim = -1)
         else:
             plt.imshow(im)
-plt.savefig("outputs/predict_masks.png", bbox_inches='tight')
+plt.savefig("outputs/predict_masks0.png", bbox_inches='tight')
 
 demo_logger.critical("Visual Grouping Module Demonstration")
 
@@ -167,11 +168,17 @@ if img.max() > 1.1: img = img / 256.
 
 seg_masks = from_onehot_mask(masks)
 
-#metapercept.perception.propagator.num_iters = 132
-outputs = metapercept.group_concepts(img / 256., "object", target = seg_masks)
+metapercept.perception.propagator.num_iters = 132
+#metapercept.implementations.load_state_dict(torch.load("checkpoints/KL0_imps_backup.pth", map_location = device))
+#metapercept = torch.load("checkpoints/KL0_backup.ckpt", map_location = "cpu")
+
+outputs = metapercept.group_concepts(img, "object", target = None)
 masks = outputs["masks"]
 alive = outputs["alive"]
 prop_maps = outputs["prop_maps"]
+
+
+print(alive)
 
 counter = 0
 alive = alive.flatten()
