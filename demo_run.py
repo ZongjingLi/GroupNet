@@ -167,8 +167,8 @@ if img.max() > 1.1: img = img / 256.
 
 seg_masks = from_onehot_mask(masks)
 
-metapercept.perception.propagator.num_iters = 132
-outputs = metapercept.group_concepts(img, "object", target = seg_masks)
+#metapercept.perception.propagator.num_iters = 132
+outputs = metapercept.group_concepts(img / 256., "object", target = seg_masks)
 masks = outputs["masks"]
 alive = outputs["alive"]
 prop_maps = outputs["prop_maps"]

@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
+from torchvision import transforms
 from torch.utils.data import DataLoader
 
 from rinarak.logger import get_logger,set_output_file
@@ -186,6 +187,7 @@ def train(model, config, args):
    
     """start the training process"""
     itrs = 0
+    W, H = config.resolution
     train_logger.critical("start training process")
     for epoch in range(args.epochs):
         epoch_loss = .0
@@ -195,7 +197,8 @@ def train(model, config, args):
             ims = sample["img"]
             masks = sample["masks"]
 
-            if ims.max() > 1.1: ims = ims / 256.
+            if ims.max() > 1.0: ims = ims / 256.
+            ims = transforms.Resize([W, H])(ims)
             if len(masks.shape) == 3: masks 
 
             """train the perception module, extract masks"""

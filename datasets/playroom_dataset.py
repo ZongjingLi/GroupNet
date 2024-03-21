@@ -41,12 +41,13 @@ class PlayroomDataset(Dataset):
         img1 = read_image(self.get_image_path(file_name, frame_idx))
 
 
-        flag = os.path.exists(self.get_image_path(file_name, self.frame_idx+1))
+        flag = False
+        #flag = os.path.exists(self.get_image_path(file_name, str(self.frame_idx+1)))
         img2 = read_image(self.get_image_path(file_name, frame_idx+1)) if flag else img1
         segment_colors = read_image(self.get_image_path(file_name.replace('/images/', '/segments/'), frame_idx))
         gt_segment = self.process_segmentation_color(segment_colors, file_name)
 
-        ret = {'img1': img1, 'img2': img2, 'gt_segment': gt_segment}
+        ret = {'img1': img1, 'img2': img2, 'gt_segment': gt_segment, "img": img1, "masks": gt_segment}
 
 
         return ret

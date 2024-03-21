@@ -222,6 +222,7 @@ class MetaNet(nn.Module):
 
 
         # [compute log softmax on the logits] (F.kl_div requires log prob for pred)
+        #mask = torch.ones_like(mask)
         y_pred = weighted_softmax(logits, mask)
 
 
@@ -229,6 +230,7 @@ class MetaNet(nn.Module):
 
         # [compute the target probabilities] (F.kl_div requires prob for target)
         y_true = targets / (torch.sum(targets, -1, keepdim=True) + 1e-9)
+        
 
         # [compute kl divergence]
         kl_div = F.kl_div(y_pred, y_true, reduction='none') * mask
@@ -238,6 +240,7 @@ class MetaNet(nn.Module):
         agg_mask = (mask.sum(-1) > 0).float()
         loss = kl_div.sum() / (agg_mask.sum() + 1e-9)
 
+        #loss = F.mse_loss(y_true, y_pred)
 
 
         return loss, y_pred

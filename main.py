@@ -18,10 +18,11 @@ from mvcl.custom import build_custom
 import torch
 import torch.nn as nn
 
-dataset_dir = "/Users/melkor/Documents/datasets"
+local = True
+dataset_dir = "/Users/melkor/Documents/datasets" if local else "datasets"
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--expr_name",                   default = "KFT_KL0")
+argparser.add_argument("--expr_name",                   default = "PlayroomKL1")
 argparser.add_argument("--dataset_dir",                 default = dataset_dir)
 # [Experiment configuration]
 argparser.add_argument("--domain_name",                 default = "demo")
@@ -40,7 +41,7 @@ argparser.add_argument("--freeze_perception",           default = False)
 argparser.add_argument("--freeze_knowledge",            default = True)
 
 # [Save checkpoints at dir...]
-argparser.add_argument("--ckpt_itrs",                   default = 100)
+argparser.add_argument("--ckpt_itrs",                   default = 32)
 argparser.add_argument("--ckpt_dir",                    default = "checkpoints")
 argparser.add_argument("--load_ckpt_knowledge",         default = False)
 argparser.add_argument("--load_ckpt_percept",           default = False)
@@ -57,6 +58,17 @@ domain = load_domain_string(meta_domain_str, domain_parser)
 # [Build the Model]
 #args.load_ckpt_percept = "checkpoints/KFT_percept_backup.pth"
 #args.load_ckpt_knowledge = "checkpoints/KFT_knowledge_backup.pth"
+if args.domain_name == "Playroom":
+    config.domain_name = "Playroom"
+
+if args.dataset_name == "Playroom":
+    config.channel_dim = 3
+    config.resolution = (64,64)
+
+if args.dataset_name == "Sprites":
+    config.channel_dim = 4
+    config.resolution = (64,64)
+
 model = MetaVisualLearner(domain, config)
 model = build_custom(model, config, domain.domain_name)
 #model.load_state_dict(torch.load("checkpoints/KFT_backup.pth"))
