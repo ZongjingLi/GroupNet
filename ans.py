@@ -1,2 +1,7 @@
-import torch_sparse
-print(torch_sparse.__version__)
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    def __init__(self):
+        super().__init__()
+        
