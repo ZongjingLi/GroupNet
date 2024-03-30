@@ -83,7 +83,6 @@ def inference(sample_inds, segment_targets):
 
     # spatial proximity restriction
 
-
     u_indices = sample_inds[1,...].long()
     v_indices = sample_inds[2,...].long()
     u_seg = torch.gather(segment_targets, 1, u_indices)
