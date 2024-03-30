@@ -29,6 +29,7 @@ operator_scene = Primitive(
     lambda x: {**x,"end": x["end"]}
 )
 
+
 # [Existianial quantification, exists, forall]
 operator_exists = Primitive(
     "exists",
@@ -41,3 +42,8 @@ operator_forall = Primitive(
     arrow(ObjectSet, Boolean),
     lambda x:{**x,
     "end":torch.min(x["end"], dim = -1).values})
+
+operator_equal_concept = Primitive(
+    "equal_concept",
+    arrow(ObjectSet, ObjectSet, Boolean)
+)
