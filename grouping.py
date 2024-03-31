@@ -9,7 +9,7 @@ from datasets.playroom_dataset import PlayroomDataset, DataLoader
 from torchvision import transforms
 
 dataset = PlayroomDataset(True)
-loader = DataLoader(dataset, batch_size = 1, shuffle = False)
+loader = DataLoader(dataset, batch_size = 1, shuffle = True)
 for sample in loader:
     sample;break;
 
@@ -22,8 +22,8 @@ resolution = (W, H, C)
 GPM = GraphPropagation(num_iters = 132, inhibit=1, excite=1, project=0, adj_thresh = 0.5)
 extractor = Competition(num_masks = 32, mask_thresh=0.5, mask_beta = 10, num_competition_rounds=3)
 
-K = 25; D = 32
-num_long_range = 1024 - K**2
+K = 11; D = 32
+num_long_range =  int(K * K * 0.15) #1024 - K**2
 N = W * H
 locals = generate_local_indices([W,H], K).long()
 
@@ -83,18 +83,20 @@ def inference(sample_inds, segment_targets):
 
     # spatial proximity restriction
 
-    u_indices = sample_inds[1,...].long()
-    v_indices = sample_inds[2,...].long()
-    u_seg = torch.gather(segment_targets, 1, u_indices)
-    v_seg = torch.gather(segment_targets, 1, v_indices)
+    if sample_inds is not None:
+        samples = torch.gather(segment_targets,1, sample_inds[2,...]).squeeze(-1)
+    else:
+        samples = segment_targets.permute(0, 2, 1)
+    targets = segment_targets == samples
 
-    connectivity = ((u_seg == v_seg).float()) #* ((u_seg != 0).float())
+    #targets = targets / (torch.sum(targets, dim = -1, keepdim = True) + 1e-9)
 
-    connectivity = connectivity / (torch.sum(connectivity, dim = -1, keepdim = True) + 1e-9)
-
-    connectivity = logit(connectivity)
+    connectivity = logit(targets)
 
     return connectivity
+
+def object_inference(region, connectivity):
+    return 
 
 indices = get_indices()
 logits = inference(indices, masks.reshape(1,W*H,1))
