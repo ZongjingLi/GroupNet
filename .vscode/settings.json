@@ -1,3 +1,10 @@
 {
-    "winopacity.opacity": 40
+    "winopacity.opacity": 40,
+    "glassit.alpha": 50,
+    "glassit.force_sway": true,
+    "glassit.step": 5,
+    "superBG.opacity": 30,
+    "superBG.images": [
+        "/Users/melkor/Desktop/dragonwaste"
+    ]
 }
