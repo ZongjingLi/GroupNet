@@ -34,9 +34,9 @@ if False:
 else:
     img = sample["img1"]
     masks = sample["gt_segment"]
-    
-    img = transforms.Resize([W, H])(img)
-    masks = transforms.Resize([W, H])(masks).unsqueeze(-1)
+    Wi, Hi = (128, 128)
+    img = transforms.Resize([Wi, Hi])(img)
+    masks = transforms.Resize([Wi, Hi])(masks).unsqueeze(-1)
     print(img.shape, masks.shape)
 
 def kalescope_propgation(logits, indices, resolution = (W,H)):
