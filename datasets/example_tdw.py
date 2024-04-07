@@ -87,7 +87,7 @@ class SceneRenderer(Controller):
 
     def _record_is_ok(self, record) -> bool:
         return not record.do_not_use
-
+    
 
     def _get_output_directory(self) -> Path:
         return Path.cwd().joinpath("datasets/ExampleImages")

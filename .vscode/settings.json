@@ -3,8 +3,14 @@
     "glassit.alpha": 50,
     "glassit.force_sway": true,
     "glassit.step": 5,
-    "superBG.opacity": 30,
+    "superBG.opacity": 18,
     "superBG.images": [
-        "/Users/melkor/Desktop/dragonwaste"
-    ]
+        "/Users/melkor/Desktop/截屏2024-03-26 下午12.35.37.png",
+        "/Users/melkor/Desktop/截屏2024-03-26 下午12.36.51.png",
+        "/Users/melkor/Desktop/截屏2024-03-26 下午12.37.51.png",
+        "/Users/melkor/Desktop/截屏2024-03-26 下午12.38.07.png"
+    ],
+    "superBG.disable": false,
+    "superBG.activeImage": 1,
+    "superBG.url": ""
 }

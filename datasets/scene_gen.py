@@ -16,6 +16,7 @@ floorplan = Floorplan()
 # Scene 1, visual variant a, object layout 0.
 floorplan.init_scene(scene="1a", layout=0)
 
+
 # Add a camera and enable image capture.
 camera = ThirdPersonCamera(position={"x": 2, "y": 2.5, "z": -2},
                            look_at={"x": 0, "y": 0, "z": 0},
