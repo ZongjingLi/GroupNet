@@ -51,7 +51,7 @@ class MetaVisualLearner(nn.Module):
             self.affinities[name] = GeneralAffinityCalculator(name)
             self.affinity_indices[name] = i
  
-    def calculate_object_affinity(self, img, target: torch.Tensor = None, working_resolution = (128,128), keys : List[str] = None, augument: dict = {}):
+    def calculate_object_affinity(self, img, target: torch.Tensor = None, working_resolution = (128,128), keys : List[str] = None, augument: dict = {}, verbose = False):
         outputs = {}
         B, C, W_, H_ = img.shape
         W, H = working_resolution
@@ -85,14 +85,24 @@ class MetaVisualLearner(nn.Module):
         edge_conditions = self.mlp_encoder(edge_conditions)
         
 
-        print(gather_affinities.shape)
-        print(edge_conditions.shape, gather_embeds.shape)
-        attn = None
+        if verbose:print(gather_affinities.shape)
+        if verbose:print(edge_conditions.shape, gather_embeds.shape)
+        attn = torch.einsum("bnkd,bmd->bmnk", edge_conditions, gather_embeds)
+        attn = attn.softmax(dim = 1)
         
+        if verbose:print("attn", attn.shape, attn.max(), attn.min())
+
+        obj_affinity = torch.einsum("bmnk,bmnk->bnk", attn, gather_affinities)
+        if verbose:print(obj_affinity.shape, obj_affinity.max(), obj_affinity.min())
+
         """step 3: (optional) calculate the loss if we have the ground truth object segments"""
         outputs["loss"] = 0.0
         outputs["attn"] = attn
+        outputs["affinity"] = obj_affinity
         return outputs
+    
+    def extract_segments(self, logits):
+        return logits
     
     def get_mapper(self,name : str):
         for map_name in self.affinities:

@@ -100,7 +100,7 @@ def local_to_sparse_global_affinity(local_adj, sample_inds, activated=None, spar
 class MetaNet(nn.Module):
     def __init__(self, 
                  channel_dim: int = 3,
-                 resolution: tuple = (128,128),
+                 resolution: tuple = (64,64),
                  max_num_masks: int = 10,
                  backbone_feature_dim: int = 128,
                  device = "cuda:0" if torch.cuda.is_available() else "cpu"):
