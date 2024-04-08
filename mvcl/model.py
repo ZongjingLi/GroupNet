@@ -9,8 +9,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from rinarak.dklearn.nn.mlp import FCBlock
 
+from typing import NamedTuple, List
 from .config import *
+from .custom import GeneralAffinityCalculator
 
 model_dict = {
     "MetaNet": MetaNet,
@@ -25,27 +28,76 @@ class MetaVisualLearner(nn.Module):
 
         # [Perception Model]
         self.resolution = config.resolution
-        self.perception = model_dict[config.perception_model_name](config)
+        self.grouper = model_dict[config.perception_model_name]()
 
         # [Central Knowledge Executor]
-        self.central_executor = CentralExecutor(domain, config)
+        self.central_executor = None#CentralExecutor(domain, config)
+        self.affinities = nn.ModuleDict()
+        self.affinity_indices = {}
 
-        # [Neuro Implementations]
-        self.implementations = nn.ModuleDict()
+        # [Component Affinity Adapter]
+        max_component_num = 999
+        component_key_dim = 64 # the key-query dim of the component affinities, combine using the dot product
+        feature_map_dim = 128 # the size of F_ij a.k.a each local feature dim, use this as the condition for the attention
+        self.embeddings = nn.Embedding(max_component_num, component_key_dim)
+        self.mlp_encoder = FCBlock(128,3,feature_map_dim * 2, component_key_dim)
+
+    def freeze_components(self, freeze = True):
+        for key in self.affinities: self.affinities[key].requires_grad_(not freeze)
     
-    def get_mapper(self,name):
-        for map_name in self.implementations:
-            if map_name == name: return self.implementations[map_name]
+    def add_affinities(self, affinity_names: List[str]):
+        """set up general affinity calculators for each name, custom version not included"""
+        for i,name in enumerate(affinity_names):
+            self.affinities[name] = GeneralAffinityCalculator(name)
+            self.affinity_indices[name] = i
+ 
+    def calculate_object_affinity(self, img, target: torch.Tensor = None, working_resolution = (128,128), keys : List[str] = None, augument: dict = {}):
+        outputs = {}
+        B, C, W_, H_ = img.shape
+        W, H = working_resolution
+        """step 1: calculate the attention based on the component affinity key"""
+        if keys is None: keys = [key for key in self.affinities]
+        gather_embeds = torch.cat(
+            [self.embeddings(torch.tensor(self.affinity_indices[key]).unsqueeze(0)).unsqueeze(1) for key in keys],
+            dim = 1)
+        # BxNxD: gather embeddings vectors for each of affinity
+        indices = self.grouper.get_indices([W,H], B, 1) #[B, 2, WH, K]
+        B, _, N, K = indices.shape
+        # calculat the augument features fro the backbone and condition for attention
+        backbone_features = self.grouper.calculate_feature_map(img).permute(0,2,3,1) # [B, W, H, D]
+        B, W, H, D = backbone_features.shape
+        augument["features"] = backbone_features
+
+        gather_affinities = torch.cat([
+            self.affinities[key].calculate_affinity_logits(indices, img, augument).unsqueeze(1) for key in keys
+            ], dim = 1)
+    
+        """step 2: calculate and combine the object affinities using precomputed"""
+        backbone_features = backbone_features.reshape([B,N,D])
+
+        x_indices = indices[[0,1],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D)
+        y_indices = indices[[0,2],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D)
+
+        x_features = torch.gather(backbone_features, dim = 1, index = x_indices).reshape([B, N, K, D])
+        y_features = torch.gather(backbone_features, dim = 1, index = y_indices).reshape([B, N, K, D])
+        
+        edge_conditions = torch.cat([x_features, y_features], dim = -1)
+        edge_conditions = self.mlp_encoder(edge_conditions)
+        
+
+        print(gather_affinities.shape)
+        print(edge_conditions.shape, gather_embeds.shape)
+        attn = None
+        
+        """step 3: (optional) calculate the loss if we have the ground truth object segments"""
+        outputs["loss"] = 0.0
+        outputs["attn"] = attn
+        return outputs
+    
+    def get_mapper(self,name : str):
+        for map_name in self.affinities:
+            if map_name == name: return self.affinities[map_name]
         assert False, f"there is no such mapper {name}"
-    
-    def precompute_concept_features(self, indices):
-        """calculate the concept affinities A^c_{i,j}
-        Inputs:
-            indices:
-        Returns:
-            a diction that corresponds different concept affinities.
-        """
-        return 
     
     def get_concept_embedding(self, name):return self.central_executor.get_concept_embedding(name)
     
@@ -60,19 +112,16 @@ class MetaVisualLearner(nn.Module):
                 masks.append(self.central_executor.entailment(c1,self.get_concept_embedding(comp)).unsqueeze(-1))
             masks = torch.cat(masks, dim = -1)
             masks = F.normalize(masks.sigmoid(), dim = -1)
-            #return logit( torch.softmax(masks, dim = -1)[:,:,values.index(c2)] )
             return logit(masks[:, :, values.index(c2)])
         #return self.central_executor.entailment(c1,c2)
     
     def group_concepts(self, img, concept, key = None, target = None):
-        affinity_calculator = self.implementations[concept]
-
-        outputs = self.perception(img, affinity_calculator, key, target_masks = target)
-
+        affinity_calculator = self.affinities[concept]
+        outputs = self.grouper(img, affinity_calculator, key, target_masks = target)
         return outputs
 
     def segment(self, indices,  affinities):
-        masks, agents, alive, propmaps = self.perception.compute_masks(affinities, indices)
+        masks, agents, alive, propmaps = self.grouper.compute_masks(affinities, indices)
         return alive, masks
 
     def print_summary(self):

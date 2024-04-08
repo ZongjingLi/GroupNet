@@ -24,10 +24,54 @@ class AffinityCalculator(nn.Module, ABC):
     @abstractmethod
     def calculate_entailment_logits(self, logits_features):
         """ take the joint affinity feature as input and output the logits connectivity"""
+    
+
+class GeneralAffinityCalculator(AffinityCalculator):
+    def __init__(self, name : str):
+        super().__init__()
+        self.name = name
+        latent_dim = 128
+        kq_dim = 32
+        self.ks_map = nn.Linear(latent_dim, kq_dim)
+        self.qs_map = nn.Linear(latent_dim, kq_dim)
+    
+    def calculate_affinity_feature(self, indices, img, augument_feature = None):
+        """ take the img as input (optional augument feature) as output the joint feature of the affinities"""
+        return
+    
+    def calculate_entailment_logits(self, logits_features):
+        """ take the joint affinity feature as input and output the logits connectivity"""
+
+    def calculate_affinity_logits(self, indices, img, augument_features = None):
+        _, B, N, K = indices.shape
+        if augument_features is not None:
+            features = augument_features["features"].reshape(B,N,-1)
+            flatten_ks = self.ks_map(features)
+            flatten_qs = self.qs_map(features)
+            B, N, D = flatten_ks.shape
+
+        x_indices = indices[[0,1],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D)
+        y_indices = indices[[0,2],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D)
+
+        # gather image features and flatten them into 1dim features
+        x_features = torch.gather(flatten_ks, dim = 1, index = x_indices).reshape([B, N, K, D])
+        y_features = torch.gather(flatten_qs, dim = 1, index = y_indices).reshape([B, N, K, D])
+
+        B, N, K, D = x_features.shape
+        
+        x_features = x_features.reshape([B, N, K, D])
+        y_features = y_features.reshape([B, N, K, D])
+
+
+        logits = (x_features * y_features).sum(dim = -1) * (D ** -0.5)
+        logits = logits.reshape([B, N, K])
+        return logits
+
 
 class ObjectAffinityFeatures(AffinityCalculator):
     def __init__(self, input_dim,  latent_dim):
         super().__init__()
+        self.name : str = "object"
         kq_dim = 132
         #assert input_dim % 2 == 0,"input dim should be divisble by 2 as it is a pair of patches features"
         self.backbone = ResidualDenseNetwork(latent_dim, n_colors = input_dim)
@@ -65,7 +109,7 @@ class ObjectAffinityFeatures(AffinityCalculator):
     
     def calculate_entailment_logits(self, logits_features, key = None):
         B, N, K, D = logits_features.shape
-        assert D % 2 == 0, "not a valif feature dim"
+        assert D % 2 == 0, "not a valid feature dim"
         DC = D // 2
         x_features = logits_features[:,:,:,:DC]
         y_features = logits_features[:,:,:,DC:]
@@ -88,6 +132,7 @@ class TextureAffinityFeatures(AffinityCalculator):
     def __init__(self,input_dim, output_dim):
         super().__init__()
         assert input_dim % 2 == 0, "input dim should be divisible by 2 as it is a pair of patchs features"
+
 
 
 def build_demo_domain(model):

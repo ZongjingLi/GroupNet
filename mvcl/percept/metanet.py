@@ -144,8 +144,15 @@ class MetaNet(nn.Module):
         self.num_long_range = int(7 * 7 * 0.2)
 
         #TODO: self.register_buffer() add a local buffer to store the universal data learned.
-        if self.use_resnet:self.img_transform = transforms.Resize([W * 1,H * 1])
+        if self.use_resnet:self.img_transform = transforms.Resize([W * 4,H * 4])
         else:self.img_transform = transforms.Resize([W,H])
+    
+    def calculate_feature_map(self, ims, lazy = False):
+        if not lazy:assert len(ims.shape) == 4,"need to process with batch"
+        elif len(ims.shape) == 3: ims = ims.unsqueeze(0)
+        ims = self.img_transform(ims)
+        feature_map = self.backbone(ims)
+        return feature_map
 
     def forward(self, ims, affinity_calculator, key = None, target_masks = None, lazy = True):
         """
