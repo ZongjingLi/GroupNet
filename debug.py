@@ -10,4 +10,4 @@ ims = torch.randn([B, C, W, H])
 feats = resnet(ims)
 
 print(ims.shape)
-
+print(feats.shape)

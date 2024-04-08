@@ -14,10 +14,13 @@ from .propagation import GraphPropagation
 from .competition import Competition
 
 from .backbones import ResidualDenseNetwork, FeatureMapEncoder
+from .resnet import ResNet_Deeplab
 from rinarak.dklearn.cv.unet import UNet
 
 from rinarak.utils.tensor import gather_tensor, stats_summary, weighted_softmax, logit
 from torch_sparse import SparseTensor
+
+from torchvision import transforms
 
 def weighted_softmax(x, weight):
     maxes = torch.max(x, -1, keepdim=True)[0]
@@ -66,13 +69,14 @@ def local_to_sparse_global_affinity(local_adj, sample_inds, activated=None, spar
 
     if sample_inds is None:
         return local_adj
+    device = local_adj.device
 
     assert sample_inds.shape[0] == 3
     local_node_inds = sample_inds[2] # [B, N, K]
 
     batch_inds = torch.arange(B).reshape([B, 1]).to(local_node_inds)
     node_inds = torch.arange(N).reshape([1, N]).to(local_node_inds)
-    row_inds = (batch_inds * N + node_inds).reshape(B * N, 1).expand(-1, K).flatten()  # [BNK]
+    row_inds = (batch_inds * N + node_inds).reshape(B * N, 1).expand(-1, K).flatten().to(device)  # [BNK]
 
     col_inds = local_node_inds.flatten()  # [BNK]
     valid = col_inds < N
@@ -94,26 +98,29 @@ def local_to_sparse_global_affinity(local_adj, sample_inds, activated=None, spar
     return global_adj
 
 class MetaNet(nn.Module):
-    def __init__(self, config):
+    def __init__(self, 
+                 channel_dim: int = 3,
+                 resolution: tuple = (128,128),
+                 max_num_masks: int = 10,
+                 backbone_feature_dim: int = 128,
+                 device = "cuda:0" if torch.cuda.is_available() else "cpu"):
         super().__init__()
-        self.config = config
-        device = config.device
         self.device = device
-        num_prop_itrs = 72
-        num_masks = config.max_num_masks
-        W, H = config.resolution
-        self.W = W
-        self.H = H
+        num_prop_itrs: int = 72
+        num_masks: int = max_num_masks
+        W, H = resolution
+        self.W: int = W
+        self.H: int = H
+        self.use_resnet:bool = True # in experiment, do not enable this optoin
 
         """general visual feature backbone, perfrom grid size convolution"""
-        latent_dim = config.backbone_feature_dim
-        rdn_args = SimpleNamespace(g0=latent_dim  ,RDNkSize=3,n_colors=config.channel_dim,
+        latent_dim = backbone_feature_dim
+        rdn_args = SimpleNamespace(g0=latent_dim  ,RDNkSize=3,n_colors = channel_dim,
                                RDNconfig=(4,3,16),scale=[2],no_upsampling=True)
-        self.backbone = ResidualDenseNetwork(latent_dim)
-        #UNet(n_channels = config.channel_dim, n_classes = latent_dim, bilinear = True)
-        #ResidualDenseNetwork(latent_dim)
-        #FeatureMapEncoder(config.channel_dim, z_dim = latent_dim)
-        #RDN(rdn_args)
+        if self.use_resnet:
+            self.backbone = ResNet_Deeplab()
+        else:
+            self.backbone = ResidualDenseNetwork(latent_dim)
 
         """local indices plus long range indices"""
         supervision_level = 1
@@ -136,17 +143,24 @@ class MetaNet(nn.Module):
         self.qs_map = nn.Linear(latent_dim, kq_dim)
         self.num_long_range = int(7 * 7 * 0.2)
 
+        #TODO: self.register_buffer() add a local buffer to store the universal data learned.
+        if self.use_resnet:self.img_transform = transforms.Resize([W * 1,H * 1])
+        else:self.img_transform = transforms.Resize([W,H])
+
     def forward(self, ims, affinity_calculator, key = None, target_masks = None, lazy = True):
         """
         Args:
             ims: the image batch send to calculate the
         Returns:
             a diction that contains the output with keys 
-            masks:
-            connections:
+            masks: BxWxHxN
         """
         if not lazy:assert len(ims.shape) == 4,"need to process with batch"
         elif len(ims.shape) == 3: ims = ims.unsqueeze(0)
+
+        # handle the resolution scaling for the resnet
+        ims = self.img_transform(ims)
+
         outputs = {}
         B, C, W, H = ims.shape
 
@@ -188,15 +202,15 @@ class MetaNet(nn.Module):
         W, H = resolution
         device = self.device
         if num_long_range is None: num_long_range = self.num_long_range
-        indices = getattr(self,f"indices_{W//stride}x{H//stride}").repeat(B,1,1).long()
+        indices = getattr(self,f"indices_{W//stride}x{H//stride}").repeat(B,1,1).long().to(device)
         v_indices = torch.cat([
-                indices, torch.randint(H * W, [B, H*W, num_long_range])
-            ], dim = -1).unsqueeze(0)
+                indices, torch.randint(H * W, [B, H*W, num_long_range]).to(device)
+            ], dim = -1).unsqueeze(0).to(device)
 
         _, B, N, K = v_indices.shape # K as the number of local indices at each grid location
 
         """Gather batch-wise indices and the u,v local features connections"""
-        u_indices = torch.arange(W * H).reshape([1,1,W*H,1]).repeat(1,B,1,K)
+        u_indices = torch.arange(W * H).reshape([1,1,W*H,1]).repeat(1,B,1,K).to(device)
         batch_inds = torch.arange(B).reshape([1,B,1,1]).repeat(1,1,H*W,K).to(device)
 
         indices = torch.cat([
@@ -240,8 +254,6 @@ class MetaNet(nn.Module):
         # [average kl divergence aross rows with non-empty positive / negative labels]
         agg_mask = (mask.sum(-1) > 0).float()
         loss = kl_div.sum() / (agg_mask.sum() + 1e-9)
-
-        #loss = F.mse_loss(y_true, y_pred)
 
 
         return loss, y_pred
