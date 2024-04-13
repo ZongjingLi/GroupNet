@@ -9,6 +9,7 @@ import numpy as np
 
 import torch
 from torch.utils.data import Dataset, DataLoader
+from torchvision.transforms import transforms
 
 import random
 import matplotlib.pyplot as plt
@@ -23,13 +24,15 @@ except:
 from rinarak.utils.os import load_json, save_json
 
 class SpritesBaseDataset(Dataset):
-    def __init__(self, split = "train", data_dir = "/Users/melkor/Documents/datasets"):
+    def __init__(self, split = "train", resolution = (64,64), data_dir = "/Users/melkor/Documents/datasets"):
         super().__init__()
         self.split = split
         self.data_dir = data_dir
+        self.resolution = resolution
         self.im_path = data_dir + "/sprites_env/base/{}/{}.png"
         self.mask_path = data_dir + "/sprites_env/base/{}/{}.npy"
         self.annotation_path = data_dir + "/sprites_env/base/{}/{}.json"
+        self.transform = transforms.Resize(resolution)
     
     def __len__(self): return 250
 
@@ -38,15 +41,19 @@ class SpritesBaseDataset(Dataset):
         img = torch.tensor(plt.imread(self.im_path.format(self.split,idx)))
         masks = np.load(self.mask_path.format(self.split,idx))
         annotations = load_json(self.annotation_path.format(self.split, idx))
-        data["img"] = normal_img(img)
-        data["masks"] = masks
+        data["img"] = self.transform(torch.tensor(normal_img(img)))
+        data["masks"] = self.transform(torch.tensor(masks).unsqueeze(0)).squeeze(0)
+
 
         questions = annotations["questions"]
         programs = annotations["programs"]
         answers = annotations["answers"]
+        scene = annotations["scene"] # a dict contains the annotation of each mask in the scene.
+         
         data["programs"] = programs[:-2]
         data["questions"] = questions[:-2]
         data["answers"] = answers[:-2]
+        data["scene"] = scene
         return data
 
 exist_template = f"""
@@ -174,6 +181,11 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
         # background information
         #scene_annotation["color"].append("not-any-color")
         #scene_annotation["shape"].append("not-any-shape")
+        mask_annotation = {}
+        for key in values:
+            for v in values[key]:
+                mask_annotation[v] = [] 
+        
         for idx in range(num_objs):
 
             # choose the size of the sprite
@@ -187,7 +199,10 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
             # choose the color of the spirte
             color = random.randint(0,2)
             scene_annotation["color"].append(values["color"][color])
-            
+            mask_annotation[values["color"][color]].append(1+idx)
+            mask_annotation[shape].append(1+idx)
+            #[1+idx] = {"color": values["color"][color], "shape": shape}
+
             # render the sprite on the canvas and mask
             if shape == "circle":  # draw circle
                 scene_annotation["shape"].append("circle")
@@ -218,10 +233,13 @@ def generate_sprites(num_scenes = 10, resolution = (64,64), split = "train", dat
         plt.imsave(im_path.format(split,scene_id),canvas)
         np.save(mask_path.format(split,scene_id),masks)
         # generate language groundings for the sprites dataset.
+        for v in mask_annotation: mask_annotation[v] = str(mask_annotation[v])
         language_annotations = {}
+        language_annotations["scene"] = mask_annotation
         language_annotations["questions"] = []
         language_annotations["answers"] = []
         language_annotations["programs"] = []
+        
         # Type I: existential quantification quries.
         for i in range(12):
             generate_sp_exists(language_annotations, scene_annotation, values);

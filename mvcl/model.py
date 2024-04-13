@@ -14,6 +14,7 @@ from rinarak.dklearn.nn.mlp import FCBlock
 from typing import NamedTuple, List
 from .config import *
 from .custom import GeneralAffinityCalculator
+from .percept.metanet import weighted_softmax
 
 model_dict = {
     "MetaNet": MetaNet,
@@ -28,12 +29,14 @@ class MetaVisualLearner(nn.Module):
 
         # [Perception Model]
         self.resolution = config.resolution
-        self.grouper = model_dict[config.perception_model_name]()
+        self.W, self.H = self.resolution
+        self.grouper = model_dict[config.perception_model_name](resolution = config.resolution)
 
         # [Central Knowledge Executor]
         self.central_executor = None#CentralExecutor(domain, config)
         self.affinities = nn.ModuleDict()
         self.affinity_indices = {}
+
 
         # [Component Affinity Adapter]
         max_component_num = 999
@@ -51,7 +54,13 @@ class MetaVisualLearner(nn.Module):
             self.affinities[name] = GeneralAffinityCalculator(name)
             self.affinity_indices[name] = i
  
-    def calculate_object_affinity(self, img, target: torch.Tensor = None, working_resolution = (128,128), keys : List[str] = None, augument: dict = {}, verbose = False):
+    def calculate_object_affinity(self, 
+                                  img, 
+                                  targets: torch.Tensor = None,
+                                  working_resolution = (128,128),
+                                  keys : List[str] = None,
+                                  augument: dict = {},
+                                  verbose = False):
         outputs = {}
         B, C, W_, H_ = img.shape
         W, H = working_resolution
@@ -87,6 +96,8 @@ class MetaVisualLearner(nn.Module):
 
         if verbose:print(gather_affinities.shape)
         if verbose:print(edge_conditions.shape, gather_embeds.shape)
+        edge_conditions = F.normalize(edge_conditions, p=2, dim = -1)
+        gather_embeds = F.normalize(gather_embeds, p=2, dim = -1)
         attn = torch.einsum("bnkd,bmd->bmnk", edge_conditions, gather_embeds)
         attn = attn.softmax(dim = 1)
         
@@ -96,10 +107,47 @@ class MetaVisualLearner(nn.Module):
         if verbose:print(obj_affinity.shape, obj_affinity.max(), obj_affinity.min())
 
         """step 3: (optional) calculate the loss if we have the ground truth object segments"""
-        outputs["loss"] = 0.0
+        loss = {}
+        if targets is not None: loss["adapter_loss"] = self.calculate_object_adapter_loss(obj_affinity, indices, targets)
+
+        """log all the outputs and return the value diction"""
+        outputs["loss"] = loss
         outputs["attn"] = attn
         outputs["affinity"] = obj_affinity
         return outputs
+
+    def calculate_object_adapter_loss(self, logits, sample_inds, target_masks, size = None):
+        if len(target_masks.shape) == 3: target_masks = target_masks.unsqueeze(1)
+        if size is None: size = [self.W, self.H]
+        B, N, K = logits.shape
+
+        segment_targets = F.interpolate(target_masks.float(), size, mode='nearest')
+
+        segment_targets = segment_targets.reshape([B,N]).unsqueeze(-1).long().repeat(1,1,K)
+        if sample_inds is not None:
+            samples = torch.gather(segment_targets,1, sample_inds[2,...]).squeeze(-1)
+        else:
+            samples = segment_targets.permute(0, 2, 1)
+
+        targets = segment_targets == samples
+        null_mask = (segment_targets == 0) # & (samples == 0)  only mask the rows
+        mask = 1 - null_mask.float()
+
+        # [compute log softmax on the logits] (F.kl_div requires log prob for pred)
+        y_pred = weighted_softmax(logits, mask)
+        y_pred = torch.log(y_pred.clamp(min=1e-8))  # log softmax
+        # [compute the target probabilities] (F.kl_div requires prob for target)
+        y_true = targets / (torch.sum(targets, -1, keepdim=True) + 1e-9)
+        
+        # [compute kl divergence]
+        kl_div = F.kl_div(y_pred, y_true, reduction='none') * mask
+        kl_div = kl_div.sum(-1)
+
+        # [average kl divergence aross rows with non-empty positive / negative labels]
+        agg_mask = (mask.sum(-1) > 0).float()
+        loss = kl_div.sum() / (agg_mask.sum() + 1e-9)
+
+        return loss#, y_pred
     
     def extract_segments(self, logits):
         return logits

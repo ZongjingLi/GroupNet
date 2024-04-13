@@ -12,6 +12,7 @@ from rinarak.dklearn.nn.mlp import FCBlock
 from rinarak.dklearn.cv.unet import UNet
 from mvcl.percept.backbones import ResidualDenseNetwork
 import math
+from rinarak.utils.tensor import logit
 
 class AffinityCalculator(nn.Module, ABC):
     def __init__(self):
@@ -34,21 +35,41 @@ class GeneralAffinityCalculator(AffinityCalculator):
         kq_dim = 32
         self.ks_map = nn.Linear(latent_dim, kq_dim)
         self.qs_map = nn.Linear(latent_dim, kq_dim)
+        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
     
     def calculate_affinity_feature(self, indices, img, augument_feature = None):
         """ take the img as input (optional augument feature) as output the joint feature of the affinities"""
         return
     
-    def calculate_entailment_logits(self, logits_features):
+    def calculate_entailment_logits(self, indices, logits_features):
         """ take the joint affinity feature as input and output the logits connectivity"""
+    
+    def ideal_maps(self, annotated_masks):
+        """
+        input is:
+        an dict annotated masks that contains a mask, is a key does not appear in the annotation, consider it's zero
+        """
+        if self.name in annotated_masks:return annotated_masks[self.name]
+        else: return False
 
     def calculate_affinity_logits(self, indices, img, augument_features = None):
         _, B, N, K = indices.shape
+        device = self.device
         if augument_features is not None:
-            features = augument_features["features"].reshape(B,N,-1)
-            flatten_ks = self.ks_map(features)
-            flatten_qs = self.qs_map(features)
-            B, N, D = flatten_ks.shape
+            if "annotated_masks" in augument_features:
+                features = self.ideal_maps(augument_features["annotated_masks"])
+                if isinstance(features, bool): # for zero features, just return zero logits
+                    print("calculated")
+                    return logit(torch.zeros([B,N,K])).to(device)
+                flatten_features = features.reshape(B,N,-1)
+                flatten_ks = flatten_features
+                flatten_qs = flatten_features
+                B, N, D = flatten_features.shape
+            else:
+                features = augument_features["features"].reshape(B,N,-1)
+                flatten_ks = self.ks_map(features)
+                flatten_qs = self.qs_map(features)
+                B, N, D = flatten_ks.shape
 
         x_indices = indices[[0,1],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D)
         y_indices = indices[[0,2],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D)
@@ -62,8 +83,10 @@ class GeneralAffinityCalculator(AffinityCalculator):
         x_features = x_features.reshape([B, N, K, D])
         y_features = y_features.reshape([B, N, K, D])
 
-
-        logits = (x_features * y_features).sum(dim = -1) * (D ** -0.5)
+        if "annotated_masks" in augument_features:
+            logits = logit(x_features == y_features, eps = 1e-6)
+        else:
+            logits = (x_features * y_features).sum(dim = -1) * (D ** -0.5)
         logits = logits.reshape([B, N, K])
         return logits
 

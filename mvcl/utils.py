@@ -30,3 +30,22 @@ class SegmentationMetric:
 
     def calculate_metrics(self):
         return
+
+def gather_annotated_masks(part_masks, scene_dict, device = "cuda:0" if torch.cuda.is_available() else "cpu"):
+    B, W, H = part_masks.shape
+    K = len(scene_dict)
+    masks = torch.zeros([B, W, H, K], device = device)
+    masks_dict = {}
+
+    for key in scene_dict:
+        masks_dict[key] = torch.zeros([B,W,H], device = device)
+        part_ids_binds = scene_dict[key]
+        for b, part_ids in enumerate(part_ids_binds):
+            ids = []
+            for i in part_ids[1:-1].split(","):
+                if len(i) > 0: ids.append(int(i))
+            for id in ids:
+                #print(masks_dict[key][b].shape)
+                #print(part_masks[b,:,:].shape)
+                masks_dict[key][b][part_masks[b,:,:]==id] = 1
+    return masks_dict

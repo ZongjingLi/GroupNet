@@ -111,7 +111,7 @@ class MetaNet(nn.Module):
         W, H = resolution
         self.W: int = W
         self.H: int = H
-        self.use_resnet:bool = True # in experiment, do not enable this optoin
+        self.use_resnet:bool = False # in experiment, do not enable this optoin
 
         """general visual feature backbone, perfrom grid size convolution"""
         latent_dim = backbone_feature_dim
@@ -151,7 +151,13 @@ class MetaNet(nn.Module):
         if not lazy:assert len(ims.shape) == 4,"need to process with batch"
         elif len(ims.shape) == 3: ims = ims.unsqueeze(0)
         ims = self.img_transform(ims)
-        feature_map = self.backbone(ims)
+        B, _, W, H = ims.shape
+        ones = torch.ones([B, 1, W, H]).to(ims.device)
+        #print(ims.shape, ones.shape)
+        #ims = torch.cat([ims,ones], dim = 1
+        if self.use_resnet:
+            feature_map = self.backbone(ims[:,:3,:,:])
+        else: feature_map = self.backbone(ims)
         return feature_map
 
     def forward(self, ims, affinity_calculator, key = None, target_masks = None, lazy = True):
