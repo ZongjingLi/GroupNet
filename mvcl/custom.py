@@ -90,6 +90,47 @@ class GeneralAffinityCalculator(AffinityCalculator):
         logits = logits.reshape([B, N, K])
         return logits
 
+class SpatialProximityAffinityCalculator(AffinityCalculator):
+    def __init__(self):
+        super().__init__()
+        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    
+    def calculate_affinity_logits(self, indices, img, augument_features = None):
+        _, B, N, K = indices.shape
+        device = self.device
+
+        flatten_locs = []
+
+        x_indices = indices[[0,1],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D).to(device)
+        y_indices = indices[[0,2],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D).to(device)
+
+        # gather image features and flatten them into 1dim features
+        x_loc = torch.gather(flatten_locs, dim = 1, index = x_indices).reshape([B, N, K, D]).to(device)
+        y_loc = torch.gather(flatten_locs, dim = 1, index = y_indices).reshape([B, N, K, D]).to(device)
+
+        B, N, K, D = x_loc.shape
+        x_loc = x_loc.reshape([B, N, K, D])
+        y_loc = y_loc.reshape([B, N, K, D])
+        
+        """TODO: this spatial proximity is only calculated over the grid points and not in standar scale!"""
+        logits = torch.sum((x_loc - y_loc) ** 2) ** 0.5
+        logits = logits.reshape([B, N, K])
+        return logits
+
+class AutoEncoderAffinityCalculator(AffinityCalculator):
+    def __init__(self):
+        super().__init__()
+        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    
+    def calculate_affinity_feature(self, indices, img, augument_feature = None):
+        """ take the img as input (optional augument feature) as output the joint feature of the affinities"""
+
+    def calculate_entailment_logits(self, indices, logits_features):
+        """ take the joint affinity feature as input and output the logits connectivity"""
+
+    def calculate_affinity_logits(self, indices, img, augument_features = None):
+        return 0
+
 
 class ObjectAffinityFeatures(AffinityCalculator):
     def __init__(self, input_dim,  latent_dim):

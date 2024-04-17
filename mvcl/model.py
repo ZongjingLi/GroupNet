@@ -44,6 +44,7 @@ class MetaVisualLearner(nn.Module):
         feature_map_dim = 128 # the size of F_ij a.k.a each local feature dim, use this as the condition for the attention
         self.embeddings = nn.Embedding(max_component_num, component_key_dim)
         self.mlp_encoder = FCBlock(128,3,feature_map_dim * 2, component_key_dim)
+        self.bias_predicter: nn.Module = FCBlock(128, 3, feature_map_dim * 2, 1, activation= "nn.GELU()")
 
     def freeze_components(self, freeze = True):
         for key in self.affinities: self.affinities[key].requires_grad_(not freeze)
@@ -90,8 +91,10 @@ class MetaVisualLearner(nn.Module):
         x_features = torch.gather(backbone_features, dim = 1, index = x_indices).reshape([B, N, K, D])
         y_features = torch.gather(backbone_features, dim = 1, index = y_indices).reshape([B, N, K, D])
         
-        edge_conditions = torch.cat([x_features, y_features], dim = -1)
-        edge_conditions = self.mlp_encoder(edge_conditions)
+        edge_features = torch.cat([x_features, y_features], dim = -1)
+        edge_conditions = self.mlp_encoder(edge_features)
+
+        edge_bias = self.bias_predicter(edge_features).squeeze(-1)
         
 
         if verbose:print(gather_affinities.shape)
@@ -99,11 +102,12 @@ class MetaVisualLearner(nn.Module):
         edge_conditions = F.normalize(edge_conditions, p=2, dim = -1)
         gather_embeds = F.normalize(gather_embeds, p=2, dim = -1)
         attn = torch.einsum("bnkd,bmd->bmnk", edge_conditions, gather_embeds)
-        attn = attn.softmax(dim = 1)
+        attn = torch.sigmoid(attn)
+
         
         if verbose:print("attn", attn.shape, attn.max(), attn.min())
 
-        obj_affinity = torch.einsum("bmnk,bmnk->bnk", attn, gather_affinities)
+        obj_affinity = torch.einsum("bmnk,bmnk->bnk", attn, gather_affinities) - edge_bias
         if verbose:print(obj_affinity.shape, obj_affinity.max(), obj_affinity.min())
 
         """step 3: (optional) calculate the loss if we have the ground truth object segments"""
@@ -114,6 +118,7 @@ class MetaVisualLearner(nn.Module):
         outputs["loss"] = loss
         outputs["attn"] = attn
         outputs["affinity"] = obj_affinity
+        outputs["indices"] = indices
         return outputs
 
     def calculate_object_adapter_loss(self, logits, sample_inds, target_masks, size = None):
@@ -149,6 +154,9 @@ class MetaVisualLearner(nn.Module):
 
         return loss#, y_pred
     
+    def predict_masks(self, img):
+        return 
+
     def extract_segments(self, logits):
         return logits
     
@@ -195,3 +203,10 @@ object_dim: {self.config.object_dim}        ;; the dim of the object space embed
 """
         print(summary_string)
         if self.domain is not None:self.domain.print_summary()
+
+def iterative_object_expansion(self, target, affinity):
+    """
+    input a target mask of part of the image and a set of object affinity, the model iteratively
+    add more complex
+    """
+    return
