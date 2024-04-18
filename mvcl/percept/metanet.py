@@ -106,7 +106,7 @@ class MetaNet(nn.Module):
                  device = "cuda:0" if torch.cuda.is_available() else "cpu"):
         super().__init__()
         self.device = device
-        num_prop_itrs: int = 72
+        num_prop_itrs: int = 172
         num_masks: int = max_num_masks
         W, H = resolution
         self.W: int = W
@@ -124,7 +124,7 @@ class MetaNet(nn.Module):
 
         """local indices plus long range indices"""
         supervision_level = 1
-        K = 7
+        K = 11
         self.K = K
          # the local window size ( window size of [n x n])
         self.supervision_level = supervision_level
@@ -141,7 +141,7 @@ class MetaNet(nn.Module):
         kq_dim = 132
         self.ks_map = nn.Linear(latent_dim, kq_dim)
         self.qs_map = nn.Linear(latent_dim, kq_dim)
-        self.num_long_range = int(7 * 7 * 0.2)
+        self.num_long_range = int(K**2 * 0.2)
 
         #TODO: self.register_buffer() add a local buffer to store the universal data learned.
         if self.use_resnet:self.img_transform = transforms.Resize([W * 4,H * 4])

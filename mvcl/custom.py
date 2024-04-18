@@ -94,12 +94,28 @@ class SpatialProximityAffinityCalculator(AffinityCalculator):
     def __init__(self):
         super().__init__()
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+
+    def calculate_affinity_feature(self, indices, img, augument_feature = None):
+        """ take the img as input (optional augument feature) as output the joint feature of the affinities"""
+        return
     
+    def calculate_entailment_logits(self, indices, logits_features):
+        """ take the joint affinity feature as input and output the logits connectivity"""
+    
+
     def calculate_affinity_logits(self, indices, img, augument_features = None):
         _, B, N, K = indices.shape
         device = self.device
+        D = 2
 
-        flatten_locs = []
+        """remember to fix the device arguments here and proceed"""
+        xs = torch.linspace(-1, 1, int(math.sqrt(N))).to(device)
+        ys = torch.linspace(-1, 1, int(math.sqrt(N))).to(device)
+        xs, ys = torch.meshgrid([xs,ys])
+        xs = xs[None, ..., None].repeat(B, 1, 1, 1)
+        ys = ys[None, ..., None].repeat(B, 1, 1, 1)
+        flatten_locs = torch.cat([xs, ys], dim = -1).reshape([B, N, D])
+
 
         x_indices = indices[[0,1],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D).to(device)
         y_indices = indices[[0,2],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D).to(device)
@@ -108,13 +124,18 @@ class SpatialProximityAffinityCalculator(AffinityCalculator):
         x_loc = torch.gather(flatten_locs, dim = 1, index = x_indices).reshape([B, N, K, D]).to(device)
         y_loc = torch.gather(flatten_locs, dim = 1, index = y_indices).reshape([B, N, K, D]).to(device)
 
+        y_loc = torch.ones_like(x_loc) * 0.0
+
         B, N, K, D = x_loc.shape
         x_loc = x_loc.reshape([B, N, K, D])
         y_loc = y_loc.reshape([B, N, K, D])
         
         """TODO: this spatial proximity is only calculated over the grid points and not in standar scale!"""
-        logits = torch.sum((x_loc - y_loc) ** 2) ** 0.5
-        logits = logits.reshape([B, N, K])
+        logits = torch.sum( ((x_loc - y_loc) ** 2) ** 0.5, dim = -1)
+
+        eps = 1.0
+        logits = 1 / ( eps + logits.reshape([B, N, K]) )  - 1.0
+        #logits +=  torch.randn_like(logits) * 2.0
         return logits
 
 class AutoEncoderAffinityCalculator(AffinityCalculator):

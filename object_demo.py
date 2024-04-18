@@ -19,6 +19,7 @@ from datasets.sprites_base_dataset import SpritesBaseDataset
 W, H = (64,64)
 B = 1
 vocab = ["red", "blue", "green", "circle", "diamond", "square"]
+#vocab = []
 
 """load the checkpoint data for the demo domain"""
 domain = None
@@ -56,13 +57,21 @@ metanet.freeze_components()
 outputs=metanet.calculate_object_affinity(
     ims,
     targets,
-    working_resolution=(W,H),verbose=False, augument = auguments)
+    working_resolution=(W,H),verbose=True, augument = auguments)
 
 indices = outputs["indices"]
 logits = outputs["affinity"]
 
 masks, agents, alive, prop_maps = metanet.grouper.compute_masks(logits, indices)
 alive = alive.reshape([B, -1])
+
+plt.figure("kalescope")
+for i,prop_map in enumerate(prop_maps):
+    map = prop_map.reshape([W, H, -1])
+    plt.imshow(map.detach()[...,-3:])
+    plt.text(0,0,i)
+    plt.pause(0.001)
+    plt.cla()
 
 plt.figure("visualize objects segment", figsize = (8,4))
 

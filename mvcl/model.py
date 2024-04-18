@@ -13,7 +13,7 @@ from rinarak.dklearn.nn.mlp import FCBlock
 
 from typing import NamedTuple, List
 from .config import *
-from .custom import GeneralAffinityCalculator
+from .custom import GeneralAffinityCalculator, SpatialProximityAffinityCalculator
 from .percept.metanet import weighted_softmax
 
 model_dict = {
@@ -46,6 +46,11 @@ class MetaVisualLearner(nn.Module):
         self.mlp_encoder = FCBlock(128,3,feature_map_dim * 2, component_key_dim)
         self.bias_predicter: nn.Module = FCBlock(128, 3, feature_map_dim * 2, 1, activation= "nn.GELU()")
 
+        """add some predefined affinities like Spatial Proximity and Spelke Affinity"""
+        self.affinities["spatial_proximity"] = SpatialProximityAffinityCalculator()
+        self.affinity_indices["spatial_proximity"] = 0
+        #self.affinities["motion_affinity"] = 
+
     def freeze_components(self, freeze = True):
         for key in self.affinities: self.affinities[key].requires_grad_(not freeze)
     
@@ -53,7 +58,8 @@ class MetaVisualLearner(nn.Module):
         """set up general affinity calculators for each name, custom version not included"""
         for i,name in enumerate(affinity_names):
             self.affinities[name] = GeneralAffinityCalculator(name)
-            self.affinity_indices[name] = i
+            self.affinity_indices[name] = i + len(self.affinity_indices)
+        
  
     def calculate_object_affinity(self, 
                                   img, 
@@ -94,21 +100,23 @@ class MetaVisualLearner(nn.Module):
         edge_features = torch.cat([x_features, y_features], dim = -1)
         edge_conditions = self.mlp_encoder(edge_features)
 
-        edge_bias = self.bias_predicter(edge_features).squeeze(-1)
+        edge_bias = self.bias_predicter(edge_features).squeeze(-1) 
+   
         
 
-        if verbose:print(gather_affinities.shape)
-        if verbose:print(edge_conditions.shape, gather_embeds.shape)
+        if verbose:print("gather affinitie shape:",gather_affinities.shape)
+        if verbose:print("edge condition, gather embeds shape:",edge_conditions.shape, gather_embeds.shape)
         edge_conditions = F.normalize(edge_conditions, p=2, dim = -1)
         gather_embeds = F.normalize(gather_embeds, p=2, dim = -1)
         attn = torch.einsum("bnkd,bmd->bmnk", edge_conditions, gather_embeds)
         attn = torch.sigmoid(attn)
-
+        #attn = torch.ones_like(attn)
+        #attn = torch.softmax(attn * 5, dim = 1)
         
-        if verbose:print("attn", attn.shape, attn.max(), attn.min())
+        if verbose:print("attn", list(attn.shape), float(attn.max()), float(attn.min()))
 
-        obj_affinity = torch.einsum("bmnk,bmnk->bnk", attn, gather_affinities) - edge_bias
-        if verbose:print(obj_affinity.shape, obj_affinity.max(), obj_affinity.min())
+        obj_affinity = torch.einsum("bmnk,bmnk->bnk", attn, gather_affinities - edge_bias) 
+        if verbose:print("object affinity:",list(obj_affinity.shape), float(obj_affinity.max()), float(obj_affinity.min()))
 
         """step 3: (optional) calculate the loss if we have the ground truth object segments"""
         loss = {}
