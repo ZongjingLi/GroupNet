@@ -34,7 +34,7 @@ class TDWRoomDataset(Dataset):
         self.transform = transforms.Resize(resolution)
     
     def __len__(self):
-        return len(self.files) // 2
+        return len(self.files) // 4
     
     def __getitem__(self, idx):
         root_dir = self.root_dir
@@ -43,9 +43,10 @@ class TDWRoomDataset(Dataset):
 
         data = {}
         img = torch.tensor(plt.imread(img_data_path + f"/img_{split}_{idx}.png"))
-        masks = torch.tensor(plt.imread(img_data_path + f"/id_{split}_{idx}.png"))
+        masks = np.load(img_data_path + f"/mask_{split}_{idx}.npy")
+        #masks = torch.tensor(plt.imread(img_data_path + f"/id_{split}_{idx}.png"))
         
 
         data["img"] = self.transform(torch.tensor(normal_img(img)))
-        data["masks"] = self.transform(torch.tensor(normal_img(masks)))
+        data["masks"] =self.transform(torch.tensor(masks).unsqueeze(0)).squeeze(0)
         return data
