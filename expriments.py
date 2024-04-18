@@ -28,17 +28,49 @@ from datasets.sprites_base_dataset import SpritesBaseDataset
 from torch.utils.data import DataLoader, Dataset
 from mvcl.utils import calculate_IoU_matrix, calculate_mIoU
 
+from rinarak.logger import set_output_file, get_logger
+
+from tqdm import tqdm
 import argparse
 
-def ideal_grouper_experiment(model, dataset, idx = 0, epochs = 100, lr = 2e-4, mechansim = "attention"):
+def ideal_grouper_experiment(model, dataset, idx = 0, epochs = 100, lr = 2e-4, batch_size = 2, mechansim = "attention"):
     """
     experiment setup:
     ground truth grounding features are taken as input and ground truth object segmentation is taken (affinity). We use only different
     mechanisms to calculate the affinity adapter. calculate the metrics and output the mIoU.
     training is for the affinity adapter only.
     """
-    from datasets.sprites_base_dataset import SpritesBaseDataset
-    return
+    set_output_file(f"logs/expr_concept_demo_train.txt")
+    train_logger = get_logger("expr_concept_train")
+
+    W, H = config.resolution # the resolution of the input images
+
+    loader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle = True)
+    optimizer = torch.optim.Adam(model.parameters(), lr = lr)
+
+    for epoch in range(epochs):
+        epoch_loss = 0.0
+        for sample in tqdm(loader):
+            ims = sample["img"]
+            targets = sample["masks"]
+            annotated_masks = gather_annotated_masks(targets, sample["scene"])
+            auguments = {"annotated_masks": annotated_masks} 
+
+            """calculate the ideal object affinity function using ground truth"""
+            outputs=model.calculate_object_affinity(
+            ims, # input image BxCxWxH
+            targets, # ground truth object segment
+            working_resolution=(W,H),verbose=False, augument = auguments)
+            loss = gather_loss(outputs["loss"])["adapter_loss"]
+            epoch_loss += loss
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        train_logger.critical(f"epoch:{epoch+1} loss:{epoch_loss}")
+        torch.save(model.state_dict(), "checkpoints/concept_expr.ckpt")
+    return model
 
 def autoencoder_grouper_experiment(model, dataset, idx = 0, epochs = 100, lr = 2e-4):
     """
@@ -89,7 +121,7 @@ def evaluate_metrics(model, dataset):
     return float(sum(ious)/ len(ious))
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--expr_type",                        default = "demo")
+parser.add_argument("--expr_type",                        default = "concept_demo")
 parser.add_argument("--epochs",                           default = 100)
 args = parser.parse_args()
 
@@ -100,3 +132,6 @@ if __name__ == "__main__":
 
     if args.expr_type == "demo":
         demo_experiment(args.epochs)
+    if args.expr_type == "concept_demo":
+        dataset = SpritesBaseDataset()
+        ideal_grouper_experiment()

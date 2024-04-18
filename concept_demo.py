@@ -18,7 +18,7 @@ import sys
 #affinity = ObjectAffinityFeatures(3, 100)
 
 """make the dataset"""
-W, H = (64,64)
+W, H = (32, 32)
 config.resolution = (W,H)
 metanet = MetaVisualLearner(None, config)
 
