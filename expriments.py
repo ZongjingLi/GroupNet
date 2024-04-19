@@ -39,7 +39,7 @@ import argparse
 local = True
 dataset_dir = "/Users/melkor/Documents/datasets" if local else "datasets"
 
-def ideal_grouper_experiment(model, dataset, idx = 0, epochs = 500, lr = 2e-4, batch_size = 2, mechansim = "attention"):
+def ideal_grouper_experiment(model, dataset, idx = 0, epochs = 1000, lr = 2e-4, batch_size = 2, mechansim = "attention"):
     """
     experiment setup:
     ground truth grounding features are taken as input and ground truth object segmentation is taken (affinity). We use only different
@@ -132,7 +132,7 @@ def evaluate_metrics(model, dataset):
     return float(sum(ious)/ len(ious))
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--expr_type",                        default = "demo")
+parser.add_argument("--expr_type",                        default = "concept_demo")
 parser.add_argument("--epochs",                           default = 100)
 args = parser.parse_args()
 
@@ -145,7 +145,7 @@ if __name__ == "__main__":
         resolution = (64,64)
         config.resolution = resolution
         model = MetaVisualLearner(None, config)
-        model.load_state_dict(torch.load("checkpoints/concept_expr.ckpt"))
+        model.load_state_dict(torch.load("checkpoints/concept_expr_prox.ckpt"))
         dataset = TDWRoomDataset(resolution = resolution, root_dir = dataset_dir)
         evaluate_metrics(model, dataset)
 
@@ -153,6 +153,6 @@ if __name__ == "__main__":
         resolution = (64,64)
         config.resolution = resolution
         model = MetaVisualLearner(None, config)
-        model.load_state_dict(torch.load("checkpoints/concept_expr.ckpt"))
+        model.load_state_dict(torch.load("checkpoints/concept_expr_prox.ckpt"))
         dataset = TDWRoomDataset(resolution = resolution, root_dir = dataset_dir)
         ideal_grouper_experiment(model, dataset)
