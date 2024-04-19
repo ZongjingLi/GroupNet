@@ -30,7 +30,7 @@ dataset_dir = "/Users/melkor/Documents/datasets" if local else "datasets"
 domain = None
 metanet = MetaVisualLearner(domain, config)
 #metanet.load_state_dict(torch.load("checkpoints/concept_expr.ckpt"))
-metanet.load_state_dict(torch.load("checkpoints/concept_expr_prox.ckpt"))
+metanet.load_state_dict(torch.load("checkpoints/concept_expr_prox.ckpt", map_location="cpu"))
 #metanet.add_affinities(vocab)
 
 #metanet.load_state_dict(torch.load("checkpoints/concept_expr.ckpt"))
