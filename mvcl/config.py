@@ -31,6 +31,6 @@ parser.add_argument("--resolution",            default = (64,64))
 parser.add_argument("--max_num_masks",         default = 5,       type = int)
 parser.add_argument("--backbone_feature_dim",  default = 132)
 parser.add_argument("--kq_dim",                default = 64)
-parser.add_argument("--channel_dim",           default = 4)
+parser.add_argument("--channel_dim",           default = 3)
 
 config = parser.parse_args(args = [])

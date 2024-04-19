@@ -13,7 +13,7 @@ from rinarak.dklearn.nn.mlp import FCBlock
 
 from typing import NamedTuple, List
 from .config import *
-from .custom import GeneralAffinityCalculator, SpatialProximityAffinityCalculator
+from .custom import GeneralAffinityCalculator, SpatialProximityAffinityCalculator, SpelkeAffinityCalculator
 from .percept.metanet import weighted_softmax
 
 model_dict = {
@@ -30,7 +30,7 @@ class MetaVisualLearner(nn.Module):
         # [Perception Model]
         self.resolution = config.resolution
         self.W, self.H = self.resolution
-        self.grouper = model_dict[config.perception_model_name](resolution = config.resolution)
+        self.grouper = model_dict[config.perception_model_name](resolution = config.resolution, channel_dim = config.channel_dim)
 
         # [Central Knowledge Executor]
         self.central_executor = None#CentralExecutor(domain, config)
@@ -47,9 +47,14 @@ class MetaVisualLearner(nn.Module):
         self.bias_predicter: nn.Module = FCBlock(128, 3, feature_map_dim * 2, 1, activation= "nn.GELU()")
 
         """add some predefined affinities like Spatial Proximity and Spelke Affinity"""
+        self.affinities["spelke"] = SpelkeAffinityCalculator()
+        self.affinity_indices["spelke"] = 0
+
         self.affinities["spatial_proximity"] = SpatialProximityAffinityCalculator()
-        self.affinity_indices["spatial_proximity"] = 0
-        #self.affinities["motion_affinity"] = 
+        self.affinity_indices["spatial_proximity"] = 1
+        
+
+
 
     def freeze_components(self, freeze = True):
         for key in self.affinities: self.affinities[key].requires_grad_(not freeze)
@@ -72,17 +77,21 @@ class MetaVisualLearner(nn.Module):
         B, C, W_, H_ = img.shape
         W, H = working_resolution
         """step 1: calculate the attention based on the component affinity key"""
+
         if keys is None: keys = [key for key in self.affinities]
         gather_embeds = torch.cat(
             [self.embeddings(torch.tensor(self.affinity_indices[key]).unsqueeze(0)).unsqueeze(1) for key in keys],
             dim = 1)
+
         # BxNxD: gather embeddings vectors for each of affinity
         indices = self.grouper.get_indices([W,H], B, 1) #[B, 2, WH, K]
         B, _, N, K = indices.shape
-        # calculat the augument features fro the backbone and condition for attention
+
+        # calculate the augument features fro the backbone and condition for attention
         backbone_features = self.grouper.calculate_feature_map(img).permute(0,2,3,1) # [B, W, H, D]
         B, W, H, D = backbone_features.shape
         augument["features"] = backbone_features
+        
 
         gather_affinities = torch.cat([
             self.affinities[key].calculate_affinity_logits(indices, img, augument).unsqueeze(1) for key in keys
@@ -162,11 +171,16 @@ class MetaVisualLearner(nn.Module):
 
         return loss#, y_pred
     
-    def predict_masks(self, img):
-        return 
+    def predict_masks(self, img, resolution = None):
+        if resolution is None: resolution = self.resolution
+        outputs = self.calculate_object_affinity(img, working_resolution = resolution)
+        obj_affinity = outputs["affinity"]
+        indices = outputs["indices"]
+        masks, agents, alive, prop_maps = self.extract_segments(obj_affinity, indices)
+        return {"masks":torch.einsum("bwhn,bnd->bwhn", masks, alive)}
 
-    def extract_segments(self, logits):
-        return logits
+    def extract_segments(self, logits, indices):
+        return self.grouper.compute_masks(logits, indices)
     
     def get_mapper(self,name : str):
         for map_name in self.affinities:

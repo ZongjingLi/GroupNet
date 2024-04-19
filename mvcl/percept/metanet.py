@@ -101,7 +101,7 @@ class MetaNet(nn.Module):
     def __init__(self, 
                  channel_dim: int = 3,
                  resolution: tuple = (64,64),
-                 max_num_masks: int = 10,
+                 max_num_masks: int = 30,
                  backbone_feature_dim: int = 128,
                  device = "cuda:0" if torch.cuda.is_available() else "cpu"):
         super().__init__()
@@ -115,16 +115,16 @@ class MetaNet(nn.Module):
 
         """general visual feature backbone, perfrom grid size convolution"""
         latent_dim = backbone_feature_dim
-        rdn_args = SimpleNamespace(g0=latent_dim  ,RDNkSize=3,n_colors = channel_dim,
-                               RDNconfig=(4,3,16),scale=[2],no_upsampling=True)
+        #rdn_args = SimpleNamespace(g0=latent_dim  ,RDNkSize=3,n_colors = channel_dim,
+        #                       RDNconfig=(4,3,16),scale=[2],no_upsampling=True)
         if self.use_resnet:
             self.backbone = ResNet_Deeplab()
         else:
-            self.backbone = ResidualDenseNetwork(latent_dim)
+            self.backbone = ResidualDenseNetwork(latent_dim, n_colors = channel_dim)
 
         """local indices plus long range indices"""
         supervision_level = 1
-        K = 11
+        K = 5
         self.K = K
          # the local window size ( window size of [n x n])
         self.supervision_level = supervision_level
@@ -273,7 +273,7 @@ class MetaNet(nn.Module):
     
 
     
-    def compute_masks(self, logits, indices, prop_dim = 32):
+    def compute_masks(self, logits, indices, prop_dim = 128):
         W, H = self.W, self.H
         B, N, K = logits.shape
         D = prop_dim

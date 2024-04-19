@@ -138,6 +138,10 @@ class SpatialProximityAffinityCalculator(AffinityCalculator):
         #logits +=  torch.randn_like(logits) * 2.0
         return logits
 
+class SpelkeAffinityCalculator(GeneralAffinityCalculator):
+    def __init__(self):
+        super().__init__("spelke")
+
 class AutoEncoderAffinityCalculator(AffinityCalculator):
     def __init__(self):
         super().__init__()

@@ -104,10 +104,10 @@ def expand_mask(mask, num_classes = None):
     expanded_mask = torch.zeros([batch_size, width, height, num_classes], dtype=torch.float32)
     
     # Iterate over each class and set corresponding elements in the mask tensor
-    for i in range(num_classes):
+    for i in range(1, num_classes +1):
         # Create a binary mask where class i is set to 1 and all other classes are set to 0
         class_mask = (mask == i).float()
-        expanded_mask[:, :, :, i] = class_mask
+        expanded_mask[:, :, :, i-1] = class_mask
     
     return expanded_mask
 
