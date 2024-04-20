@@ -18,7 +18,7 @@ class GraphPropagation(nn.Module):
                  excite=True,
                  inhibit=True,
                  project=False,
-                 adj_thresh=0.5):
+                 adj_thresh=0.7):
         super().__init__()
         self.num_iters = num_iters
         self.excite = excite

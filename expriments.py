@@ -132,7 +132,7 @@ def evaluate_metrics(model, dataset):
     return float(sum(ious)/ len(ious))
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--expr_type",                        default = "concept_demo")
+parser.add_argument("--expr_type",                        default = "demo")
 parser.add_argument("--epochs",                           default = 100)
 args = parser.parse_args()
 
@@ -142,10 +142,10 @@ if __name__ == "__main__":
     from mvcl.utils import calculate_IoU_matrix, calculate_mIoU
 
     if args.expr_type == "demo":
-        resolution = (64,64)
+        resolution = (128,128)
         config.resolution = resolution
         model = MetaVisualLearner(None, config)
-        model.load_state_dict(torch.load("checkpoints/concept_expr_prox.ckpt"))
+        model.load_state_dict(torch.load("checkpoints/concept_expr_prox128.ckpt", map_location = "cpu"))
         dataset = TDWRoomDataset(resolution = resolution, root_dir = dataset_dir)
         evaluate_metrics(model, dataset)
 

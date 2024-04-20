@@ -273,7 +273,7 @@ class MetaNet(nn.Module):
     
 
     
-    def compute_masks(self, logits, indices, prop_dim = 128):
+    def compute_masks(self, logits, indices, prop_dim = 32):
         W, H = self.W, self.H
         B, N, K = logits.shape
         D = prop_dim

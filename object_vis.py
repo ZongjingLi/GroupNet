@@ -17,7 +17,7 @@ from mvcl.config import config
 from datasets.sprites_base_dataset import SpritesBaseDataset
 from datasets.tdw_dataset import TDWRoomDataset
 
-resolution = (64,64)
+resolution = (128,128)
 W, H = resolution
 B = 1
 #vocab = ["red", "blue", "green", "circle", "diamond", "square"]
@@ -28,9 +28,10 @@ dataset_dir = "/Users/melkor/Documents/datasets" if local else "datasets"
 
 """load the checkpoint data for the demo domain"""
 domain = None
+config.resolution = resolution
 metanet = MetaVisualLearner(domain, config)
 #metanet.load_state_dict(torch.load("checkpoints/concept_expr.ckpt"))
-metanet.load_state_dict(torch.load("checkpoints/concept_expr_prox.ckpt", map_location="cpu"))
+metanet.load_state_dict(torch.load("checkpoints/concept_expr_prox128.ckpt", map_location="cpu"))
 #metanet.add_affinities(vocab)
 
 #metanet.load_state_dict(torch.load("checkpoints/concept_expr.ckpt"))
