@@ -84,7 +84,12 @@ class GeneralAffinityCalculator(AffinityCalculator):
         y_features = y_features.reshape([B, N, K, D])
 
         if "annotated_masks" in augument_features:
-            logits = logit(x_features == y_features, eps = 1e-6)
+            eps = 1e-6
+            scale = 5
+            #logits = logit(x_features == y_features, eps = 1e-6)
+            feature_difference =  torch.sum( ((x_features - y_features) ** 2) ** 0.5, dim = -1)
+            feature_difference = 1 / (eps + scale * feature_difference)
+            logits = logit(feature_difference)
         else:
             logits = (x_features * y_features).sum(dim = -1) * (D ** -0.5)
         logits = logits.reshape([B, N, K])

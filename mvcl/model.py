@@ -42,8 +42,11 @@ class MetaVisualLearner(nn.Module):
         max_component_num = 999
         component_key_dim = 64 # the key-query dim of the component affinities, combine using the dot product
         feature_map_dim = 128 # the size of F_ij a.k.a each local feature dim, use this as the condition for the attention
-        self.embeddings = nn.Embedding(max_component_num, component_key_dim)
+        """MLP as the encoder to encode the edge conditions"""
         self.mlp_encoder = FCBlock(128,3,feature_map_dim * 2, component_key_dim)
+
+        """use embeddings to define the weights to calculate"""
+        self.embeddings = nn.Embedding(max_component_num, component_key_dim)
         self.bias_predicter: nn.Module = FCBlock(128, 3, feature_map_dim * 2, 1, activation= "nn.GELU()")
 
         """add some predefined affinities like Spatial Proximity and Spelke Affinity"""
@@ -52,9 +55,10 @@ class MetaVisualLearner(nn.Module):
 
         self.affinities["spatial_proximity"] = SpatialProximityAffinityCalculator()
         self.affinity_indices["spatial_proximity"] = 1
+
+        self.gamma = 0.0
+        self.tau = 0.2
         
-
-
 
     def freeze_components(self, freeze = True):
         for key in self.affinities: self.affinities[key].requires_grad_(not freeze)
@@ -79,6 +83,7 @@ class MetaVisualLearner(nn.Module):
         """step 1: calculate the attention based on the component affinity key"""
 
         if keys is None: keys = [key for key in self.affinities]
+        if verbose: print(keys)
         gather_embeds = torch.cat(
             [self.embeddings(torch.tensor(self.affinity_indices[key]).unsqueeze(0)).unsqueeze(1) for key in keys],
             dim = 1)
@@ -118,7 +123,7 @@ class MetaVisualLearner(nn.Module):
         edge_conditions = F.normalize(edge_conditions, p=2, dim = -1)
         gather_embeds = F.normalize(gather_embeds, p=2, dim = -1)
         attn = torch.einsum("bnkd,bmd->bmnk", edge_conditions, gather_embeds)
-        attn = torch.sigmoid(attn)
+        attn = torch.sigmoid((attn - self.gamma)/self.tau)
         #attn = torch.ones_like(attn)
         #attn = torch.softmax(attn * 5, dim = 1)
         

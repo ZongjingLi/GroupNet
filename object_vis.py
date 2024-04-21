@@ -33,20 +33,29 @@ metanet = MetaVisualLearner(domain, config)
 #metanet.load_state_dict(torch.load("checkpoints/concept_expr.ckpt"))
 metanet.load_state_dict(torch.load("checkpoints/concept_expr_prox128.ckpt", map_location="cpu"))
 #metanet.add_affinities(vocab)
+flag = 0
+if flag:
+    metanet.add_affinities(["albedo"])
 
 #metanet.load_state_dict(torch.load("checkpoints/concept_expr.ckpt"))
 
 """gather a sample from the dataset"""
-#dataset = TDWRoomDataset(resolution = (W, H))
-dataset = TDWRoomDataset(resolution = resolution, root_dir = dataset_dir)
+#dataset = SpritesBaseDataset(resolution = resolution)
+dataset = TDWRoomDataset(split = "test",resolution = resolution, root_dir = dataset_dir)
 loader = DataLoader(dataset, batch_size = B, shuffle = True)
 
 for sample in loader: break
 ims = sample["img"]
 targets = sample["masks"]
+if flag:
+    albedo_map = sample["albedo"]
+
 #annotated_masks = gather_annotated_masks(targets, sample["scene"])
-#auguments = {"annotated_masks": annotated_masks} 
-auguments = {}
+annotated_masks = 0
+auguments = {"annotated_masks": annotated_masks} 
+
+if flag: auguments = {"albedo": albedo_map}
+else: auguments = {}
 
 """show the images and masks, components and the gathered masks"""
 b = 0
@@ -80,14 +89,18 @@ for i,prop_map in enumerate(prop_maps):
     map = prop_map.reshape([W, H, -1])
     plt.imshow(map.detach()[...,-3:])
     plt.text(0,0,i)
-    plt.pause(0.001)
+    plt.pause(0.00001)
     plt.cla()
 
 plt.figure("visualize objects segment", figsize = (8,9))
 
 num_rows = 6
-for i in range(alive[b].shape[0]):
-    plt.subplot(num_rows, alive[b].shape[0] // num_rows, i + 1)
-    plt.imshow(masks[b,:,:,i] * alive[b,i])
 
+single_mask = torch.zeros([W,H])
+#for i in range(alive[b].shape[0]):
+    #plt.subplot(num_rows, alive[b].shape[0] // num_rows, i + 1)
+    #plt.imshow(masks[b,:,:,i] * alive[b,i])
+for i in range(alive[b].shape[0]):
+    single_mask[(masks[b,:,:,i] * alive[b,i]) > 0.1] = (i+1)
+plt.imshow(single_mask.int())
 plt.show()

@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import transforms
-
+from PIL import Image
 import random
 import matplotlib.pyplot as plt
 try:
@@ -38,7 +38,10 @@ class SpritesBaseDataset(Dataset):
 
     def __getitem__(self, idx):
         data = {}
-        img = torch.tensor(plt.imread(self.im_path.format(self.split,idx)))
+        #img = torch.tensor(plt.imread(self.im_path.format(self.split,idx)))
+        img = Image.open(self.im_path.format(self.split,idx)).convert('RGB')
+        img = torch.tensor(np.array(img)).float()
+
         masks = np.load(self.mask_path.format(self.split,idx))
         annotations = load_json(self.annotation_path.format(self.split, idx))
         data["img"] = self.transform(torch.tensor(normal_img(img)))
