@@ -26,6 +26,7 @@ class MetaVisualLearner(nn.Module):
         super().__init__()
         self.config = config
         self.domain = domain
+        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
         # [Perception Model]
         self.resolution = config.resolution
@@ -42,23 +43,28 @@ class MetaVisualLearner(nn.Module):
         max_component_num = 999
         component_key_dim = 64 # the key-query dim of the component affinities, combine using the dot product
         feature_map_dim = 128 # the size of F_ij a.k.a each local feature dim, use this as the condition for the attention
+        self.feature_map_dim = feature_map_dim
         """MLP as the encoder to encode the edge conditions"""
         self.mlp_encoder = FCBlock(128,3,feature_map_dim * 2, component_key_dim)
 
         """use embeddings to define the weights to calculate"""
         self.embeddings = nn.Embedding(max_component_num, component_key_dim)
-        self.bias_predicter: nn.Module = FCBlock(128, 3, feature_map_dim * 2, 1, activation= "nn.GELU()")
-
+        self.bias_predicter = nn.ModuleDict()
+       
         """add some predefined affinities like Spatial Proximity and Spelke Affinity"""
         self.affinities["spelke"] = SpelkeAffinityCalculator()
         self.affinity_indices["spelke"] = 0
+        self.bias_predicter["spelke"] =  FCBlock(128, 3, feature_map_dim * 2, 1, activation= "nn.GELU()")
 
         self.affinities["spatial_proximity"] = SpatialProximityAffinityCalculator()
         self.affinity_indices["spatial_proximity"] = 1
+        self.bias_predicter["spatial_proximity"] =  FCBlock(128, 3, feature_map_dim * 2, 1, activation= "nn.GELU()")
 
         self.gamma = 0.0
         self.tau = 0.2
         
+
+
 
     def freeze_components(self, freeze = True):
         for key in self.affinities: self.affinities[key].requires_grad_(not freeze)
@@ -68,6 +74,7 @@ class MetaVisualLearner(nn.Module):
         for i,name in enumerate(affinity_names):
             self.affinities[name] = GeneralAffinityCalculator(name)
             self.affinity_indices[name] = i + len(self.affinity_indices)
+            self.bias_predicter[name] = FCBlock(128, 3, self.feature_map_dim * 2, 1, activation= "nn.GELU()")
         
  
     def calculate_object_affinity(self, 
@@ -78,14 +85,16 @@ class MetaVisualLearner(nn.Module):
                                   augument: dict = {},
                                   verbose = False):
         outputs = {}
+        device = self.device
         B, C, W_, H_ = img.shape
         W, H = working_resolution
+        img = img.to(device)
+        if targets is not None: targets = targets.to(device)
         """step 1: calculate the attention based on the component affinity key"""
 
         if keys is None: keys = [key for key in self.affinities]
-        if verbose: print(keys)
         gather_embeds = torch.cat(
-            [self.embeddings(torch.tensor(self.affinity_indices[key]).unsqueeze(0)).unsqueeze(1) for key in keys],
+            [self.embeddings(torch.tensor(self.affinity_indices[key]).unsqueeze(0).to(device)).unsqueeze(1) for key in keys],
             dim = 1)
 
         # BxNxD: gather embeddings vectors for each of affinity
@@ -114,9 +123,9 @@ class MetaVisualLearner(nn.Module):
         edge_features = torch.cat([x_features, y_features], dim = -1)
         edge_conditions = self.mlp_encoder(edge_features)
 
-        edge_bias = self.bias_predicter(edge_features).squeeze(-1) 
-   
-        
+        # this is the for the component wise bias
+        edge_bias = [self.bias_predicter[key](edge_features).unsqueeze(1).squeeze(-1) for key in self.affinities]
+        edge_bias = torch.cat(edge_bias, dim = 1)
 
         if verbose:print("gather affinitie shape:",gather_affinities.shape)
         if verbose:print("edge condition, gather embeds shape:",edge_conditions.shape, gather_embeds.shape)
@@ -126,6 +135,10 @@ class MetaVisualLearner(nn.Module):
         attn = torch.sigmoid((attn - self.gamma)/self.tau)
         #attn = torch.ones_like(attn)
         #attn = torch.softmax(attn * 5, dim = 1)
+        
+        if verbose:print("attn", list(attn.shape), float(attn.max()), float(attn.min()))
+
+        obj_affinity = torch.einsum("bmnk,bmnk->bnk", attn, gather_affinities - edge_bias)
         
         if verbose:print("attn", list(attn.shape), float(attn.max()), float(attn.min()))
 

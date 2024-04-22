@@ -23,19 +23,21 @@ B = 1
 #vocab = ["red", "blue", "green", "circle", "diamond", "square"]
 #vocab = []
 local = True
-dataset_dir = "/Users/melkor/Documents/datasets" if local else "datasets"
-
+syq_path = "/Users/melkor/Documents/datasets"
+wys_path = "/data3/guofang/Meta/Benchmark/MultiPaperQA/wys_try/datasets"
+dataset_dir = syq_path if local else wys_path
 
 """load the checkpoint data for the demo domain"""
 domain = None
 config.resolution = resolution
 metanet = MetaVisualLearner(domain, config)
+flag = 1
+if flag:
+    metanet.add_affinities(["albedo"])
 #metanet.load_state_dict(torch.load("checkpoints/concept_expr.ckpt"))
 metanet.load_state_dict(torch.load("checkpoints/concept_expr_prox128.ckpt", map_location="cpu"))
 #metanet.add_affinities(vocab)
-flag = 0
-if flag:
-    metanet.add_affinities(["albedo"])
+
 
 #metanet.load_state_dict(torch.load("checkpoints/concept_expr.ckpt"))
 

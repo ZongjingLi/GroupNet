@@ -61,18 +61,18 @@ class GeneralAffinityCalculator(AffinityCalculator):
                 if isinstance(features, bool): # for zero features, just return zero logits
                     print("calculated")
                     return logit(torch.zeros([B,N,K])).to(device)
-                flatten_features = features.reshape(B,N,-1)
+                flatten_features = features.reshape(B,N,-1).to(device)
                 flatten_ks = flatten_features
                 flatten_qs = flatten_features
                 B, N, D = flatten_features.shape
             else:
-                features = augument_features["features"].reshape(B,N,-1)
+                features = augument_features["features"].reshape(B,N,-1).to(device)
                 flatten_ks = self.ks_map(features)
                 flatten_qs = self.qs_map(features)
                 B, N, D = flatten_ks.shape
 
-        x_indices = indices[[0,1],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D)
-        y_indices = indices[[0,2],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D)
+        x_indices = indices[[0,1],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D).to(device)
+        y_indices = indices[[0,2],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D).to(device)
 
         # gather image features and flatten them into 1dim features
         x_features = torch.gather(flatten_ks, dim = 1, index = x_indices).reshape([B, N, K, D])
@@ -84,12 +84,7 @@ class GeneralAffinityCalculator(AffinityCalculator):
         y_features = y_features.reshape([B, N, K, D])
 
         if "annotated_masks" in augument_features:
-            eps = 1e-6
-            scale = 5
-            #logits = logit(x_features == y_features, eps = 1e-6)
-            feature_difference =  torch.sum( ((x_features - y_features) ** 2) ** 0.5, dim = -1)
-            feature_difference = 1 / (eps + scale * feature_difference)
-            logits = logit(feature_difference)
+            logits = logit(x_features == y_features, eps = 1e-6)
         else:
             logits = (x_features * y_features).sum(dim = -1) * (D ** -0.5)
         logits = logits.reshape([B, N, K])

@@ -4,7 +4,8 @@
  # @ Modified by: Zongjing Li
  # @ Modified time: 2024-04-16 00:19:05
  # @ Description: This file is distributed under the MIT license.
-'''
+ 这是一条真实的信息
+ '''
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -37,9 +38,11 @@ from tqdm import tqdm
 import argparse
 
 local = True
-dataset_dir = "/Users/melkor/Documents/datasets" if local else "datasets"
+syq_path = "/Users/melkor/Documents/datasets"
+wys_path = "/data3/guofang/Meta/Benchmark/MultiPaperQA/wys_try/datasets"
+dataset_dir = syq_path if local else wys_path
 
-def ideal_grouper_experiment(model, dataset, idx = 0, epochs = 1000, lr = 2e-4, batch_size = 2, mechansim = "attention"):
+def ideal_grouper_experiment(model, dataset, idx = 0, epochs = 5000, lr = 2e-4, batch_size = 2, mechansim = "attention"):
     """
     experiment setup:
     ground truth grounding features are taken as input and ground truth object segmentation is taken (affinity). We use only different
@@ -78,7 +81,7 @@ def ideal_grouper_experiment(model, dataset, idx = 0, epochs = 1000, lr = 2e-4, 
             predict_masks, _ ,alive, prop_maps = model.extract_segments(obj_affinity, indices)
             predict_masks = torch.einsum("bwhn,bnd->bwhn", predict_masks, alive)
 
-            miou = calculate_mIoU(target_masks, predict_masks)
+            miou = calculate_mIoU(target_masks.to("cpu"), predict_masks.to("cpu"))
             ious.append(miou)
             
             """gather loss and propagate"""
@@ -93,7 +96,7 @@ def ideal_grouper_experiment(model, dataset, idx = 0, epochs = 1000, lr = 2e-4, 
             sys.stdout.write(f"\repoch:{epoch+1} [{itrs}/{len(dataset)}] loss:{loss} iou:{miou}")
 
         train_logger.critical(f"epoch:{epoch+1} loss:{epoch_loss} : mIoU:{sum(ious)/len(ious)}")
-        torch.save(model.state_dict(), "checkpoints/concept_expr_prox.ckpt")
+        torch.save(model.state_dict(), "MetaVisualConceptLearner/checkpoints/concept_expr_prox128.ckpt")
     return model
 
 def autoencoder_grouper_experiment(model, dataset, idx = 0, epochs = 100, lr = 2e-4):
@@ -124,7 +127,7 @@ def evaluate_metrics(model, dataset):
         imgs = sample["img"]
         target_masks = sample["masks"]
         predict_masks = model.predict_masks(imgs)["masks"]
-        miou = calculate_mIoU(target_masks, predict_masks)
+        miou = calculate_mIoU(target_masks.to("cpu"), predict_masks.to("cpu"))
         ious.append(miou)
         sys.stdout.write(f"\r[{itrs}/{len(dataset)}]iou:{float(sum(ious)/ len(ious))}")
 
@@ -140,19 +143,23 @@ args = parser.parse_args()
 if __name__ == "__main__":
     # Generate example masks
     from mvcl.utils import calculate_IoU_matrix, calculate_mIoU
+    device = "cuda:0"
 
     if args.expr_type == "demo":
         resolution = (128,128)
         config.resolution = resolution
         model = MetaVisualLearner(None, config)
-        model.load_state_dict(torch.load("checkpoints/concept_expr_prox128.ckpt", map_location = "cpu"))
+        #model.load_state_dict(torch.load("MetaVisualConceptLearner/checkpoints/concept_expr.ckpt"))
+        model = model.to(device)
         dataset = TDWRoomDataset(resolution = resolution, root_dir = dataset_dir)
         evaluate_metrics(model, dataset)
 
     if args.expr_type == "concept_demo":
-        resolution = (64,64)
+        resolution = (128,128)
         config.resolution = resolution
         model = MetaVisualLearner(None, config)
-        model.load_state_dict(torch.load("checkpoints/concept_expr_prox.ckpt"))
+        model.add_affinities(["albedo"])
+        model = model.to(device)
+        #model.load_state_dict(torch.load("MetaVisualConceptLearner/checkpoints/concept_expr.ckpt"))
         dataset = TDWRoomDataset(resolution = resolution, root_dir = dataset_dir)
         ideal_grouper_experiment(model, dataset)
