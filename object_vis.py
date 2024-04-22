@@ -17,15 +17,19 @@ from mvcl.config import config
 from datasets.sprites_base_dataset import SpritesBaseDataset
 from datasets.tdw_dataset import TDWRoomDataset
 
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
 resolution = (128,128)
 W, H = resolution
 B = 1
 #vocab = ["red", "blue", "green", "circle", "diamond", "square"]
 #vocab = []
-local = True
+
+local = False
 syq_path = "/Users/melkor/Documents/datasets"
 wys_path = "/data3/guofang/Meta/Benchmark/MultiPaperQA/wys_try/datasets"
 dataset_dir = syq_path if local else wys_path
+
+prefix = "" if local else "MetaVisualConceptLearner/"
 
 """load the checkpoint data for the demo domain"""
 domain = None
@@ -35,8 +39,9 @@ flag = 1
 if flag:
     metanet.add_affinities(["albedo"])
 #metanet.load_state_dict(torch.load("checkpoints/concept_expr.ckpt"))
-metanet.load_state_dict(torch.load("checkpoints/concept_expr_prox128.ckpt", map_location="cpu"))
+metanet.load_state_dict(torch.load(f"{prefix}checkpoints/concept_expr_prox128.ckpt", map_location="cpu"))
 #metanet.add_affinities(vocab)
+metanet = metanet.to(device)
 
 
 #metanet.load_state_dict(torch.load("checkpoints/concept_expr.ckpt"))

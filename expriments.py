@@ -37,7 +37,7 @@ from rinarak.logger import set_output_file, get_logger
 from tqdm import tqdm
 import argparse
 
-local = True
+local = False
 syq_path = "/Users/melkor/Documents/datasets"
 wys_path = "/data3/guofang/Meta/Benchmark/MultiPaperQA/wys_try/datasets"
 dataset_dir = syq_path if local else wys_path
@@ -143,7 +143,7 @@ args = parser.parse_args()
 if __name__ == "__main__":
     # Generate example masks
     from mvcl.utils import calculate_IoU_matrix, calculate_mIoU
-    device = "cuda:0"
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     if args.expr_type == "demo":
         resolution = (128,128)
