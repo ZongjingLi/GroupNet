@@ -62,9 +62,17 @@ class MetaVisualLearner(nn.Module):
 
         self.gamma = 0.0
         self.tau = 0.2
-        
+    
+    def toggle_component(self, name, freeze = True):
+        self.affinities[name].requires_grad_(not freeze)
+    
+    def toggle_component_except(self, name, freeze = True):
+        for key in self.affinities:
+            if name != key: self.affinities[key].requires_grad_(not freeze)
+            else: self.affinities[key].requires_grad_(freeze)
 
-
+    def toggle_motion(self, freeze = True):
+        assert "spelke" in self.affinities, "spelke affinity is not contained in the model"
 
     def freeze_components(self, freeze = True):
         for key in self.affinities: self.affinities[key].requires_grad_(not freeze)

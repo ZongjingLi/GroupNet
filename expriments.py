@@ -115,6 +115,15 @@ def motion_affinity_training(model, dataset, idx = 0, epochs = 100, lr = 2e-4):
     experient setup: the input dataset contains two connected frames and optical flow are precomputed
     choose a standard mvcl model and 
     """
+    model.toggle_component_except("spelke") # freeze all the components except for motion
+    return
+
+def visual_feature_affinity_training(model, dataset, idx = 0, epochs = 100, lr = 2e-4):
+    """
+    experient setup: the input dataset contains two connected frames and optical flow are precomputed
+    choose a standard mvcl model and 
+    """
+    model.toggle_component_except("spelke") # freeze all the components except for motion
     return
 
 def evaluate_metrics(model, dataset):
