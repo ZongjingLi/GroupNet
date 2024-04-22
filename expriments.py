@@ -37,7 +37,7 @@ from rinarak.logger import set_output_file, get_logger
 from tqdm import tqdm
 import argparse
 
-local = False
+local = not torch.cuda.is_available()
 syq_path = "/Users/melkor/Documents/datasets"
 wys_path = "/data3/guofang/Meta/Benchmark/MultiPaperQA/wys_try/datasets"
 dataset_dir = syq_path if local else wys_path
