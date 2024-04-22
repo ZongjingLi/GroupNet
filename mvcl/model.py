@@ -40,12 +40,12 @@ class MetaVisualLearner(nn.Module):
 
 
         # [Component Affinity Adapter]
-        max_component_num = 999
+        max_component_num = 32
         component_key_dim = 64 # the key-query dim of the component affinities, combine using the dot product
         feature_map_dim = 128 # the size of F_ij a.k.a each local feature dim, use this as the condition for the attention
         self.feature_map_dim = feature_map_dim
         """MLP as the encoder to encode the edge conditions"""
-        self.mlp_encoder = FCBlock(128,3,feature_map_dim * 2, component_key_dim)
+        self.mlp_encoder = FCBlock(128, 2 ,feature_map_dim * 2, component_key_dim)
 
         """use embeddings to define the weights to calculate"""
         self.embeddings = nn.Embedding(max_component_num, component_key_dim)
@@ -54,11 +54,11 @@ class MetaVisualLearner(nn.Module):
         """add some predefined affinities like Spatial Proximity and Spelke Affinity"""
         self.affinities["spelke"] = SpelkeAffinityCalculator()
         self.affinity_indices["spelke"] = 0
-        self.bias_predicter["spelke"] =  FCBlock(128, 3, feature_map_dim * 2, 1, activation= "nn.GELU()")
+        self.bias_predicter["spelke"] =  FCBlock(128, 2, feature_map_dim * 2, 1, activation= "nn.GELU()")
 
         self.affinities["spatial_proximity"] = SpatialProximityAffinityCalculator()
         self.affinity_indices["spatial_proximity"] = 1
-        self.bias_predicter["spatial_proximity"] =  FCBlock(128, 3, feature_map_dim * 2, 1, activation= "nn.GELU()")
+        self.bias_predicter["spatial_proximity"] =  FCBlock(128, 2, feature_map_dim * 2, 1, activation= "nn.GELU()")
 
         self.gamma = 0.0
         self.tau = 0.2
@@ -74,7 +74,7 @@ class MetaVisualLearner(nn.Module):
         for i,name in enumerate(affinity_names):
             self.affinities[name] = GeneralAffinityCalculator(name)
             self.affinity_indices[name] = i + len(self.affinity_indices)
-            self.bias_predicter[name] = FCBlock(128, 3, self.feature_map_dim * 2, 1, activation= "nn.GELU()")
+            self.bias_predicter[name] = FCBlock(128, 2, self.feature_map_dim * 2, 1, activation= "nn.GELU()")
         
  
     def calculate_object_affinity(self, 
