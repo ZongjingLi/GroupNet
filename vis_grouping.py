@@ -6,3 +6,13 @@
  # @ Description: This file is distributed under the MIT license.
 '''
 
+from mvcl.custom import SpatialProximityAffinityCalculator,\
+    SpelkeAffinityCalculator, GeneralAffinityCalculator
+
+from datasets.sprites_base_dataset import SpritesBaseDataset
+
+def group_affinity(self, img, affinity):
+    pass
+
+if __name__ == "__main__":
+    albedo_affinity = GeneralAffinityCalculator("albedo")
