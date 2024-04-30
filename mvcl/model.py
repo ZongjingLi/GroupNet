@@ -52,17 +52,25 @@ class MetaVisualLearner(nn.Module):
         self.bias_predicter = nn.ModuleDict()
        
         """add some predefined affinities like Spatial Proximity and Spelke Affinity"""
-        self.affinities["spelke"] = SpelkeAffinityCalculator()
-        self.affinity_indices["spelke"] = 0
-        self.bias_predicter["spelke"] =  FCBlock(128, 2, feature_map_dim * 2, 1, activation= "nn.GELU()")
-
-        self.affinities["spatial_proximity"] = SpatialProximityAffinityCalculator()
-        self.affinity_indices["spatial_proximity"] = 1
-        self.bias_predicter["spatial_proximity"] =  FCBlock(128, 2, feature_map_dim * 2, 1, activation= "nn.GELU()")
 
         self.gamma = 0.0
         self.tau = 0.2
-    
+
+    def clear_components(self):
+        self.bias_predicter = nn.ModuleDict()
+        self.affinities = nn.ModuleDict()
+        self.affinity_indices = {}
+
+    def add_spatial_affinity(self):
+        self.affinities["spatial_proximity"] = SpatialProximityAffinityCalculator()
+        self.affinity_indices["spatial_proximity"] = 0
+        self.bias_predicter["spatial_proximity"] =  FCBlock(128, 2, self.feature_map_dim * 2, 1, activation= "nn.GELU()")
+
+    def add_spelke_affinity(self):
+        self.affinities["spelke"] = SpelkeAffinityCalculator()
+        self.affinity_indices["spelke"] = 1
+        self.bias_predicter["spelke"] =  FCBlock(128, 2, self.feature_map_dim * 2, 1, activation= "nn.GELU()")
+
     def toggle_component(self, name, freeze = True):
         self.affinities[name].requires_grad_(not freeze)
     
@@ -133,7 +141,7 @@ class MetaVisualLearner(nn.Module):
 
         # this is the for the component wise bias
         edge_bias = [self.bias_predicter[key](edge_features).unsqueeze(1).squeeze(-1) for key in self.affinities]
-        edge_bias = torch.cat(edge_bias, dim = 1)
+        edge_bias = torch.cat(edge_bias, dim = 1) 
 
         if verbose:print("gather affinitie shape:",gather_affinities.shape)
         if verbose:print("edge condition, gather embeds shape:",edge_conditions.shape, gather_embeds.shape)
@@ -141,12 +149,12 @@ class MetaVisualLearner(nn.Module):
         gather_embeds = F.normalize(gather_embeds, p=2, dim = -1)
         attn = torch.einsum("bnkd,bmd->bmnk", edge_conditions, gather_embeds)
         attn = torch.sigmoid((attn - self.gamma)/self.tau)
-        #attn = torch.ones_like(attn)
+        attn = torch.ones_like(attn)
         #attn = torch.softmax(attn * 5, dim = 1)
         
         if verbose:print("attn", list(attn.shape), float(attn.max()), float(attn.min()))
 
-        obj_affinity = torch.einsum("bmnk,bmnk->bnk", attn, gather_affinities - edge_bias)
+        obj_affinity = torch.einsum("bmnk,bmnk->bnk", attn, gather_affinities - edge_bias * 0)
         
         if verbose:print("attn", list(attn.shape), float(attn.max()), float(attn.min()))
 

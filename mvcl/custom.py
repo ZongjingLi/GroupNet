@@ -55,16 +55,20 @@ class GeneralAffinityCalculator(AffinityCalculator):
     def calculate_affinity_logits(self, indices, img, augument_features = None):
         _, B, N, K = indices.shape
         device = self.device
+
         if augument_features is not None:
             if "annotated_masks" in augument_features:
                 features = self.ideal_maps(augument_features["annotated_masks"])
                 if isinstance(features, bool): # for zero features, just return zero logits
                     print("calculated")
                     return logit(torch.zeros([B,N,K])).to(device)
+                #print(f"{B}x{N}xD", features.shape)
+                features = features.permute(0,2,3,1)
                 flatten_features = features.reshape(B,N,-1).to(device)
                 flatten_ks = flatten_features
                 flatten_qs = flatten_features
                 B, N, D = flatten_features.shape
+                #print(flatten_features.shape)
             else:
                 features = augument_features["features"].reshape(B,N,-1).to(device)
                 flatten_ks = self.ks_map(features)
@@ -84,7 +88,14 @@ class GeneralAffinityCalculator(AffinityCalculator):
         y_features = y_features.reshape([B, N, K, D])
 
         if "annotated_masks" in augument_features:
-            logits = logit(x_features == y_features, eps = 1e-6)
+            #logits = logit(x_features == y_features, eps = 1e-6)
+            logits = torch.sum( ((x_features - y_features) ** 2) , dim = -1)** 0.5
+            eps = 0.01
+            #print(logits.max(), logits.min())
+            inverse_div = 1 / ( eps + 7.2 * logits.reshape([B, N, K]) )
+            #inverse_div = (logits < 0.1).float()
+            logits = logit(inverse_div)
+            #print(inverse_div.shape, inverse_div.max(), inverse_div.min())
         else:
             logits = (x_features * y_features).sum(dim = -1) * (D ** -0.5)
         logits = logits.reshape([B, N, K])
@@ -131,10 +142,11 @@ class SpatialProximityAffinityCalculator(AffinityCalculator):
         y_loc = y_loc.reshape([B, N, K, D])
         
         """TODO: this spatial proximity is only calculated over the grid points and not in standar scale!"""
-        logits = torch.sum( ((x_loc - y_loc) ** 2) ** 0.5, dim = -1)
+        logits = torch.sum( ((x_loc - y_loc) ** 2) , dim = -1)** 0.5
 
-        eps = 1.0
-        logits = 1 / ( eps + logits.reshape([B, N, K]) )  - 1.0
+        eps = 0.1
+        inv_diff = 1 / ( eps + 150 * logits.reshape([B, N, K]) )
+        logits = logit(inv_diff)
         #logits +=  torch.randn_like(logits) * 2.0
         return logits
 

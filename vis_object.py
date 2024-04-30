@@ -35,12 +35,15 @@ prefix = "" if local else "MetaVisualConceptLearner/"
 domain = None
 config.resolution = resolution
 metanet = MetaVisualLearner(domain, config)
+metanet.add_spatial_affinity()
+metanet.add_spelke_affinity()
 flag = 1
 if flag:
     metanet.add_affinities(["albedo"])
 #metanet.load_state_dict(torch.load("checkpoints/concept_expr.ckpt"))
 metanet.load_state_dict(torch.load(f"{prefix}checkpoints/concept_expr_prox128.ckpt", map_location="cpu"))
 #metanet.add_affinities(vocab)
+torch.save(metanet.affinities["spelke"].state_dict(),"checkpoints/spelke_affinity.pth")
 metanet = metanet.to(device)
 
 
@@ -104,9 +107,6 @@ plt.figure("visualize objects segment", figsize = (8,9))
 num_rows = 6
 
 single_mask = torch.zeros([W,H])
-#for i in range(alive[b].shape[0]):
-    #plt.subplot(num_rows, alive[b].shape[0] // num_rows, i + 1)
-    #plt.imshow(masks[b,:,:,i] * alive[b,i])
 for i in range(alive[b].shape[0]):
     single_mask[(masks[b,:,:,i] * alive[b,i]) > 0.1] = (i+1)
 plt.imshow(single_mask.int())

@@ -141,7 +141,7 @@ class MetaNet(nn.Module):
         kq_dim = 132
         self.ks_map = nn.Linear(latent_dim, kq_dim)
         self.qs_map = nn.Linear(latent_dim, kq_dim)
-        self.num_long_range = int(K**2 * .7)
+        self.num_long_range = int(K**2 * 0.7)
 
         #TODO: self.register_buffer() add a local buffer to store the universal data learned.
         if self.use_resnet:self.img_transform = transforms.Resize([W * 4,H * 4])

@@ -51,7 +51,7 @@ class TDWRoomDataset(Dataset):
         #masks = torch.tensor(plt.imread(img_data_path + f"/id_{split}_{idx}.png"))
         
 
-        data["img"] = self.transform(torch.tensor(normal_img(img)))
-        data["albedo"] = self.transform(torch.tensor(normal_img(albedo)))
+        data["img"] = self.transform(normal_img(img))
+        data["albedo"] = self.transform(normal_img(albedo))
         data["masks"] =self.transform(torch.tensor(masks).unsqueeze(0)).squeeze(0)
         return data
