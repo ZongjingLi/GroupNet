@@ -37,7 +37,7 @@ def group_affinity(metanet, ims = None):
         albedo = sample["albedo"]
     else:
         ims = ims
-        albedo = ims
+        albedo = sample["albedo"]
     targets = sample["masks"]
     
     #albedo = targets.unsqueeze(1)

@@ -91,7 +91,7 @@ class GeneralAffinityCalculator(AffinityCalculator):
             logits = torch.sum( ((x_features - y_features) ** 2) , dim = -1)** 0.5
             eps = 0.01
             #print(logits.max(), logits.min())
-            inverse_div = 1 / ( eps + 7.2 * logits.reshape([B, N, K]) )
+            inverse_div = 1 / ( eps + 17.2 * logits.reshape([B, N, K]) )
             #inverse_div = (logits < 0.1).float()
             logits = logit(inverse_div)
             #print(inverse_div.shape, inverse_div.max(), inverse_div.min())
@@ -145,6 +145,7 @@ class SpatialProximityAffinityCalculator(AffinityCalculator):
 
         eps = 0.1
         inv_diff = 1 / ( eps + 150 * logits.reshape([B, N, K]) )
+        #inv_diff= logits.reshape([])
         logits = logit(inv_diff)
         #logits +=  torch.randn_like(logits) * 2.0
         return logits
