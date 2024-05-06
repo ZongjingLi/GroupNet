@@ -45,5 +45,35 @@ operator_forall = Primitive(
 
 operator_equal_concept = Primitive(
     "equal_concept",
-    arrow(ObjectSet, ObjectSet, Boolean)
+    arrow(ObjectSet, ObjectSet, Boolean),
+    "Not Implemented"
 )
+
+# make reference to the objects in the scene
+operator_related_concept = Primitive(
+    "relate",
+    arrow(ObjectSet, ObjectSet, Boolean),
+    "Not Implemented"
+)
+
+def type_filter(objset,concept,exec):
+    filter_logits = torch.zeros_like(objset["end"])
+    parent_type = exec.get_type(concept)
+    for candidate in exec.type_constraints[parent_type]:
+        filter_logits += exec.entailment(objset["features"],
+            exec.get_concept_embedding(candidate)).sigmoid()
+
+    div = exec.entailment(objset["features"],
+            exec.get_concept_embedding(concept)).sigmoid()
+
+    filter_logits = logit(div / filter_logits)
+
+    return torch.min(objset["end"],filter_logits)
+
+def refractor(exe, name):
+    exe.redefine_predicate(
+        name,
+        lambda x: {**x, "end":  type_filter(x, name, x["executor"]) }
+    )
+
+# end points to train the clustering methods using uniform same or different.

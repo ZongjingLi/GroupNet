@@ -68,7 +68,6 @@ class GeneralAffinityCalculator(AffinityCalculator):
                 flatten_ks = flatten_features
                 flatten_qs = flatten_features
                 B, N, D = flatten_features.shape
-                #print(flatten_features.shape)
             else:
                 features = augument_features["features"].reshape(B,N,-1).to(device)
                 flatten_ks = self.ks_map(features)

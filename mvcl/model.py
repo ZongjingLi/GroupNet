@@ -34,7 +34,9 @@ class MetaVisualLearner(nn.Module):
         self.grouper = model_dict[config.perception_model_name](resolution = config.resolution, channel_dim = config.channel_dim)
 
         # [Central Knowledge Executor]
-        self.central_executor = None#CentralExecutor(domain, config)
+        self.central_executor = CentralExecutor(domain, config.concept_type, config.concept_dim)
+        self.relation_encoder = None
+
         self.affinities = nn.ModuleDict()
         self.affinity_indices = {}
 
@@ -92,6 +94,25 @@ class MetaVisualLearner(nn.Module):
             self.affinity_indices[name] = i + len(self.affinity_indices)
             self.bias_predicter[name] = FCBlock(128, 2, self.feature_map_dim * 2, 1, activation= "nn.GELU()")
         
+    def visual_query_grounding(self, ims, programs, answers = None, target = None, save_path = None, save_idx = None):
+        """predicte the object affnity using the logits"""
+        percept_outputs = self.calculate_object_affinity(ims, target = target, working_resolution = (self.W, self.H), verbose = False)
+        obj_affinity = percept_outputs["affinity"]
+        indices = percept_outputs["indices"]
+        
+        """extract masks from the predicted object affinity logits"""
+        predict_masks, _ ,alive, prop_maps = self.extract_segments(obj_affinity, indices)
+        predict_masks = torch.einsum("bwhn,bnd->bwhn", predict_masks, alive)
+
+        """generate the query featueres and set information to ground by language"""
+        B, W, H, M = predict_masks.shape
+        alive = torch.ones_like(alive)
+        rand_features = torch.randn([B, M, 100])
+
+        query_outputs = self.language_grounding(
+        percept_outputs, programs, answers ,masks = predict_masks, alive = alive, features = rand_features)
+        return query_outputs
+
  
     def calculate_object_affinity(self, 
                                   img, 
@@ -169,8 +190,68 @@ class MetaVisualLearner(nn.Module):
         outputs["loss"] = loss
         outputs["attn"] = attn
         outputs["affinity"] = obj_affinity
+        outputs["component_affinity"] = {}
+        for i, key in enumerate(self.affinities):
+            outputs["component_affinity"][key] = gather_affinities[:,i,:,:]
         outputs["indices"] = indices
         return outputs
+    
+    def language_grounding(self,percept_outputs,  programs, answers = None, masks = None, alive = None, features = None):
+        #TODO: mask feature extractor is not implemented yet
+        obj_affinity = percept_outputs["affinity"]
+        indices = percept_outputs["indices"]
+        component_affinity = percept_outputs["component_affinity"]
+        component_affinity["object"] = obj_affinity
+
+        if alive is None and masks is None and features is None:
+            predict_masks, _ ,alive, prop_maps = self.extract_segments(obj_affinity, indices)
+            predict_masks = torch.einsum("bwhn,bnd->bwhn", predict_masks, alive)
+            #features = torch.randn([predict_masks.shape[0], predict_masks.shape[-1], 100])
+        else: predict_masks = masks
+        M = predict_masks.shape[-1]
+
+        M = predict_masks.shape[-1]
+        B, N, K = obj_affinity.shape
+        """iterate over batched programs and answer pairs"""
+        query_loss = 0.0
+        predict_answers = []
+        numbers = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+        for batch_idx in range(len(programs[0])):
+            context = {
+                0:{
+                    "end": logit(alive.reshape([B,M])[batch_idx,:]),
+                    "features": features[batch_idx,:,:],
+                    "masks": predict_masks.reshape([B, N, M])[batch_idx, :, :],
+                    "affinity": component_affinity,
+                    "executor": self.central_executor}
+            }
+
+            query_loss = 0.0
+            batch_answers = []
+            for query_idx in range(len(programs)):
+                program = programs[query_idx][batch_idx]
+                
+                results = self.central_executor.evaluate(program, context)
+
+                gt_answer = answers[query_idx][batch_idx]
+
+                if gt_answer in ["yes", "no"]:
+                    #print(program, results["end"])
+                    if gt_answer == "yes":
+                        query_loss +=  -1. * torch.log(results["end"].sigmoid())
+                    else:
+                         query_loss +=  -1. * torch.log( 1 - results["end"].sigmoid())
+                    batch_answers.append("yes" if results["end"] > 0. else "no")
+                elif gt_answer in numbers:
+                    batch_answers.append(int(results["end"] + 0.5))
+                else:
+                    #assert gt_answer in results["end"], f"unknown grounding gt answer: {gt_answer}"
+                    #query_loss += -1. * torch.log(results["end"][gt_answer].sigmoid())
+                    batch_answers.append(results["end"])
+            predict_answers.append(batch_answers)
+        query_loss /= (len(programs) * len(programs[0]))
+                
+        return {"loss": query_loss, "answers":predict_answers}
 
     def calculate_object_adapter_loss(self, logits, sample_inds, target_masks, size = None):
         if len(target_masks.shape) == 3: target_masks = target_masks.unsqueeze(1)
@@ -205,9 +286,9 @@ class MetaVisualLearner(nn.Module):
 
         return loss#, y_pred
     
-    def predict_masks(self, img, resolution = None):
+    def predict_masks(self, img, resolution = None, augument = {}):
         if resolution is None: resolution = self.resolution
-        outputs = self.calculate_object_affinity(img, working_resolution = resolution)
+        outputs = self.calculate_object_affinity(img, working_resolution = resolution, augument = augument)
         obj_affinity = outputs["affinity"]
         indices = outputs["indices"]
         masks, agents, alive, prop_maps = self.extract_segments(obj_affinity, indices)

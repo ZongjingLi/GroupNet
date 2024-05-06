@@ -1,11 +1,13 @@
 (domain MetaLearn)
 (:type
-    object - vector[float,100]
+    img - vector[float,128,128,3]
     position - vector[float,2]
     color - vector[float, 64]
     category
 )
 (:predicate
+    object ?x-img -> vector[float,100]
+
     color ?x-object -> vector[float,100]
     shape ?x-object -> vector[float,100]
 

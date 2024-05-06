@@ -32,18 +32,24 @@ dataset_dir = syq_path if local else wys_path
 prefix = "" if local else "MetaVisualConceptLearner/"
 
 """load the checkpoint data for the demo domain"""
-domain = None
+from rinarak.domain import load_domain_string, Domain
+domain_parser = Domain("mvcl/base.grammar")
+
+meta_domain_str = ""
+with open(f"domains/demo_domain.txt","r") as domain:
+        for line in domain: meta_domain_str += line
+domain = load_domain_string(meta_domain_str, domain_parser)
 config.resolution = resolution
 metanet = MetaVisualLearner(domain, config)
-metanet.add_spatial_affinity()
-metanet.add_spelke_affinity()
+#metanet.add_spatial_affinity()
+#metanet.add_spelke_affinity()
 flag = 1
 if flag:
     metanet.add_affinities(["albedo"])
 #metanet.load_state_dict(torch.load("checkpoints/concept_expr.ckpt"))
-metanet.load_state_dict(torch.load(f"{prefix}checkpoints/concept_expr_prox128.ckpt", map_location="cpu"))
+#metanet.load_state_dict(torch.load(f"{prefix}checkpoints/concept_expr_prox128.ckpt", map_location="cpu"))
 #metanet.add_affinities(vocab)
-torch.save(metanet.affinities["spelke"].state_dict(),"checkpoints/spelke_affinity.pth")
+#torch.save(metanet.affinities["spelke"].state_dict(),"checkpoints/spelke_affinity.pth")
 metanet = metanet.to(device)
 
 
@@ -61,11 +67,12 @@ if flag:
     albedo_map = sample["albedo"]
 
 #annotated_masks = gather_annotated_masks(targets, sample["scene"])
-annotated_masks = 0
-auguments = {"annotated_masks": annotated_masks} 
 
-if flag: auguments = {"albedo": albedo_map}
+
+
+if flag: auguments = {"annotated_masks":{"albedo": albedo_map}}
 else: auguments = {}
+
 
 """show the images and masks, components and the gathered masks"""
 b = 0

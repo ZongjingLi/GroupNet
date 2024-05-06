@@ -90,7 +90,14 @@ if __name__ == "__main__":
     from datasets.sprites_base_dataset import normal_img
     from PIL import Image
     import numpy as np
-    domain = None
+    from rinarak.domain import load_domain_string, Domain
+    domain_parser = Domain("mvcl/base.grammar")
+
+    meta_domain_str = ""
+    with open(f"domains/demo_domain.txt","r") as domain:
+        for line in domain: meta_domain_str += line
+    domain = load_domain_string(meta_domain_str, domain_parser)
+
     config.resolution = resolution
     
     metanet = MetaVisualLearner(domain, config)
@@ -100,10 +107,10 @@ if __name__ == "__main__":
     metanet.add_affinities(["albedo"])
     #metanet.add_spelke_affinity()
     #metanet.affinities["spelke"] = torch.load("checkpoints/spelke_affinity.pth")
-    path = "outputs/illusion.png"
-    transform = transforms.Resize(resolution)
-    img = torch.tensor(np.array(Image.open(path).convert('RGB')))
-    img = transform(normal_img(img)).unsqueeze(0).float()
+    #path = "outputs/illusion.png"
+    #transform = transforms.Resize(resolution)
+    #img = torch.tensor(np.array(Image.open(path).convert('RGB')))
+    #img = transform(normal_img(img)).unsqueeze(0).float()
     img = None
 
     group_affinity(metanet, img)

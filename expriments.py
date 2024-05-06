@@ -30,9 +30,10 @@ from datasets.tdw_dataset import TDWRoomDataset
 
 
 from torch.utils.data import DataLoader, Dataset
-from mvcl.utils import calculate_IoU_matrix, calculate_mIoU, expand_mask
+from mvcl.utils import calculate_IoU_matrix, calculate_mIoU, expand_mask, to_onehot_mask
 
 from rinarak.logger import set_output_file, get_logger
+from rinarak.utils.os import save_json
 
 from tqdm import tqdm
 import argparse
@@ -41,6 +42,8 @@ local = not torch.cuda.is_available()
 syq_path = "/Users/melkor/Documents/datasets"
 wys_path = "/data3/guofang/Meta/Benchmark/MultiPaperQA/wys_try/datasets"
 dataset_dir = syq_path if local else wys_path
+
+mvcl_dir = ""
 
 def ideal_grouper_experiment(model, dataset, idx = 0, epochs = 5000, lr = 2e-4, batch_size = 2, mechansim = "attention"):
     """
@@ -110,37 +113,95 @@ def autoencoder_grouper_experiment(model, dataset, idx = 0, epochs = 100, lr = 2
     return
 
 """the true story lies after this line"""
-def motion_affinity_training(model, dataset, idx = 0, epochs = 100, lr = 2e-4):
+def motion_affinity_training(model, dataset, batch_size = 2, epochs = 100, lr = 2e-4):
     """
     experient setup: the input dataset contains two connected frames and optical flow are precomputed
     choose a standard mvcl model and 
     """
     model.toggle_component_except("spelke") # freeze all the components except for motion
-    return
+    loader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle = True)
+    optimizer = torch.optim.Adam(model.parameters(), lr = lr)
+    ious = []
+    for epoch in range(epochs):
+        epoch_loss = 0.0
+        for sample in loader:
+            ims = sample["img"]
+            target_masks = sample["masks"]
+            """strongly recommend to use precomputed optical flow to speed up training."""
+            outputs=model.calculate_object_affinity(
+            ims, # input image BxCxWxH
+            target_masks, # ground truth object segment
+            working_resolution=(W,H),verbose=False, augument = auguments)
 
-def visual_feature_affinity_training(model, dataset, idx = 0, epochs = 100, lr = 2e-4):
+            """(optional) extract the ground truth segments and calculate the iou"""
+            obj_affinity = outputs["affinity"]
+            indices = outputs["indices"]
+            predict_masks, _ ,alive, prop_maps = model.extract_segments(obj_affinity, indices)
+            predict_masks = torch.einsum("bwhn,bnd->bwhn", predict_masks, alive)
+
+            miou = calculate_mIoU(target_masks.to("cpu"), predict_masks.to("cpu"))
+            ious.append(miou)
+            
+            """gather loss and propagate"""
+            loss = gather_loss(outputs["loss"])["adapter_loss"]
+            epoch_loss += loss
+
+            """backward propagate and optimize the target loss"""
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+    return model
+
+def visual_feature_affinity_training(model, dataset, batch_size = 2, epochs = 100, lr = 2e-4):
     """
     experient setup: the input dataset contains two connected frames and optical flow are precomputed
     choose a standard mvcl model and 
     """
-    model.toggle_component_except("spelke") # freeze all the components except for motion
+    model.toggle_component_except("albedo") # freeze all the components except for motion
+    loader = torch.utils.data.DataLoader(dataset, batch_size = batch_size, shuffle = True)
+    optimizer = torch.optim.Adam(model.parameters(), lr = lr)
+    for epoch in range(epochs):
+        for sample in loader:
+            pass
     return
 
-def evaluate_metrics(model, dataset):
+def visual_feature_meta_training(model):
+    pass
+
+def evaluate_metrics(model, dataset, name = "expr"):
     model.eval()
     loader = DataLoader(dataset, batch_size = 1)
     ious = []
     itrs = 0
+    split = dataset.split
+    save_name = f"outputs/{name}/{split}/"
+    
     for sample in loader:
-        itrs += 1
+        
         imgs = sample["img"]
         target_masks = sample["masks"]
-        predict_masks = model.predict_masks(imgs)["masks"]
+        albedo_map = imgs
+        auguments = {"annotated_masks":{"albedo": albedo_map}}
+        predict_masks = model.predict_masks(imgs, augument = auguments)["masks"]
+
         miou = calculate_mIoU(target_masks.to("cpu"), predict_masks.to("cpu"))
         ious.append(miou)
         sys.stdout.write(f"\r[{itrs}/{len(dataset)}]iou:{float(sum(ious)/ len(ious))}")
 
+        evaluate_data_bind = {"iou":float(miou)}
+        save_json(evaluate_data_bind, save_name + f"{itrs}_eval.json")
+
+        #plt.imshow()
+        plt.imsave(save_name + f"{itrs}_img.png", np.array(imgs[0].cpu().detach().permute(1,2,0)))
+        plt.cla()
+        plt.axis("off")
+        plt.imshow(to_onehot_mask(predict_masks.cpu().detach())[0])
+        plt.savefig(save_name + f"{itrs}_mask.png", bbox_inches = "tight")
+        itrs += 1
+
     sys.stdout.write(f"\rmIoU:{float(sum(ious)/ len(ious))}")
+    overall_data = {"miou":  float(sum(ious)/ len(ious))}
+    save_json(overall_data, save_name + "overall.json")
     return float(sum(ious)/ len(ious))
 
 parser = argparse.ArgumentParser()
@@ -150,21 +211,32 @@ args = parser.parse_args()
 
 # Example usage
 if __name__ == "__main__":
+    from rinarak.domain import load_domain_string, Domain
+    domain_parser = Domain("mvcl/base.grammar")
+
+    meta_domain_str = ""
+    with open(f"domains/demo_domain.txt","r") as domain:
+        for line in domain: meta_domain_str += line
+    domain = load_domain_string(meta_domain_str, domain_parser)
+
     # Generate example masks
     from mvcl.utils import calculate_IoU_matrix, calculate_mIoU
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     if args.expr_type == "demo":
-        resolution = (128,128)
+        resolution = (64,64)
         config.resolution = resolution
-        model = MetaVisualLearner(None, config)
+        model = MetaVisualLearner(domain, config)
         #model.load_state_dict(torch.load("MetaVisualConceptLearner/checkpoints/concept_expr.ckpt"))
+        model.clear_components()
+        model.add_spatial_affinity()
+        model.add_affinities(["albedo"])
         model = model.to(device)
         dataset = TDWRoomDataset(resolution = resolution, root_dir = dataset_dir)
         evaluate_metrics(model, dataset)
 
     if args.expr_type == "concept_demo":
-        resolution = (128,128)
+        resolution = (64,64)
         config.resolution = resolution
         model = MetaVisualLearner(None, config)
         model.add_affinities(["albedo"])

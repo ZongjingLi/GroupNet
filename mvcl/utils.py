@@ -111,6 +111,14 @@ def expand_mask(mask, num_classes = None):
     
     return expanded_mask
 
+def to_onehot_mask(masks):
+    B, W, H, K = masks.shape
+    result_mask = torch.zeros([B,W,H])
+
+    for i in range(masks.shape[-1]):
+        result_mask[masks[:,:,:,i] > 0.1] = (i+1)
+    return result_mask
+
 
 def gather_annotated_masks(part_masks, scene_dict, device = "cuda:0" if torch.cuda.is_available() else "cpu"):
     B, W, H = part_masks.shape
