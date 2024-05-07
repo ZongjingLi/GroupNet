@@ -13,6 +13,7 @@
         <div>
             <input id = "idx_input" value = "0">
             <button onclick = "setIdx()">confirm</button>
+            <a id = "overall_metric">overall metric</a>
         </div>
         <div>
             <h3>Image Inputs v.s GT-Masks</h3>
@@ -22,6 +23,7 @@
                 <button onclick="prev()">prev</button>
                 <a id = "curr_idx">Curr Idx:</a>
                 <button onclick="next()">next</button>
+                <div id = "curr_metric">current metric:</div>
             </div>
 
         </div>
@@ -56,12 +58,36 @@
         var mask_path = base_path + split +"/" + idx + "_mask.png";
         mask_bind.src = mask_path
     }
-    function changeQuery() {
+    function changeQuery(json) {
+        var bind = document.getElementById("curr_metric")
+        bind.innerText = "Current IoU:"+json.iou;
 
+        bind = document.getElementById("query")
+        bind.innerHTML = "<div>"
+        for (i = 0; i < json.programs.length; i++) {
+            bind.innerHTML += "<div>query:"+json.queries[i]+"</div>"
+            bind.innerHTML += "<div>program:"+json.programs[i]+"</div>"
+            bind.innerHTML += "<div>answer:"+json.answers[i]+"</div>"
+            bind.innerHTML += "<div>gt_answer:"+json.gt_answers[i]+"</div><div>_____________________</div>"
+        }
+        bind.innerHTML += "</div>"
+    }
+    function changeOverall(json) {
+        var bind = document.getElementById("overall_metric")
+        bind.innerText = "Overall mIoU:"+json.miou + "Overall Acc:" + json.accuracy;
     }
     function changeData() {
         changeImg();
-        changeQuery();
+        
+        json_path = base_path + split +"/" + idx + "_eval.json";
+        fetch(json_path)
+        .then((response) => response.json())
+        .then((json) => changeQuery(json));
+
+        overall_path = base_path + split +"/" + "overall.json";
+        fetch(overall_path)
+        .then((response) => response.json())
+        .then((json) => changeOverall(json));
         changeCurr();
     }
     function next() {

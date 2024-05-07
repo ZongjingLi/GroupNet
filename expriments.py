@@ -175,6 +175,7 @@ def evaluate_metrics(model, dataset, name = "expr"):
     itrs = 0
     split = dataset.split
     save_name = f"outputs/{name}/{split}/"
+    accurates = [0]
     
     for sample in loader:
         
@@ -188,7 +189,13 @@ def evaluate_metrics(model, dataset, name = "expr"):
         ious.append(miou)
         sys.stdout.write(f"\r[{itrs}/{len(dataset)}]iou:{float(sum(ious)/ len(ious))}")
 
-        evaluate_data_bind = {"iou":float(miou)}
+        evaluate_data_bind = {
+            "iou":float(miou),
+            "queries": ["in the scene?", "is there any green object in the scene"],
+            "programs":["(scene $0)", "(exists (green $0))"],
+            "answers":["null", "yes"],
+            "gt_answers": ["null", "yes"], 
+        }
         save_json(evaluate_data_bind, save_name + f"{itrs}_eval.json")
 
         #plt.imshow()
@@ -200,7 +207,7 @@ def evaluate_metrics(model, dataset, name = "expr"):
         itrs += 1
 
     sys.stdout.write(f"\rmIoU:{float(sum(ious)/ len(ious))}")
-    overall_data = {"miou":  float(sum(ious)/ len(ious))}
+    overall_data = {"miou":  float(sum(ious)/ len(ious)), "accuracy": sum(accurates)/len(accurates)}
     save_json(overall_data, save_name + "overall.json")
     return float(sum(ious)/ len(ious))
 
