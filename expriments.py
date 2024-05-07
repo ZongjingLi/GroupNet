@@ -232,7 +232,7 @@ if __name__ == "__main__":
         model.add_spatial_affinity()
         model.add_affinities(["albedo"])
         model = model.to(device)
-        dataset = TDWRoomDataset(resolution = resolution, root_dir = dataset_dir)
+        dataset = TDWRoomDataset(resolution = resolution, root_dir = dataset_dir, split = "train")
         evaluate_metrics(model, dataset)
 
     if args.expr_type == "concept_demo":
