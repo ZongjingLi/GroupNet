@@ -77,3 +77,11 @@ def refractor(exe, name):
     )
 
 # end points to train the clustering methods using uniform same or different.
+operator_uniform_attribute = Primitive("uniform_attribute",
+                                       arrow(ObjectSet, Boolean),
+                                       "not")
+
+operator_equal_attribute = Primitive("equal_attribute",
+                                     arrow(ObjectSet, Boolean, Boolean),
+                                     "not"
+                                     )
