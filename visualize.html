@@ -11,9 +11,15 @@
     <h1>MetaVisualConceptLearner</h1>
     <div>
         <div>
-            <input id = "idx_input" value = "0">
-            <button onclick = "setIdx()">confirm</button>
-            <a id = "overall_metric">overall metric</a>
+            <div>
+                <input id = "name_input" value = "expr">
+                <button onclick = "setName()">set</button>
+            </div>
+            <div>
+                <input id = "idx_input" value = "0">
+                <button onclick = "setIdx()">confirm</button>
+                <a id = "overall_metric">overall metric</a>
+            </div>
         </div>
         <div>
             <h3>Image Inputs v.s GT-Masks</h3>
@@ -41,7 +47,13 @@
     var root = "outputs/"; 
     var idx = 0;
     var split = "train"
-    var base_path = "outputs/expr/"
+    var name_ = "expr"
+    var base_path = "outputs/" + name_ + "/"
+    function setName() {
+        name_ = document.getElementById("name_input").value;
+        console.log(name_)
+        changeData(); 
+    }
     function setIdx() {
         idx = document.getElementById("idx_input").value;
         changeData();
@@ -77,6 +89,7 @@
         bind.innerText = "Overall mIoU:"+json.miou + "Overall Acc:" + json.accuracy;
     }
     function changeData() {
+        base_path = "outputs/" + name_ + "/"
         changeImg();
         
         json_path = base_path + split +"/" + idx + "_eval.json";
