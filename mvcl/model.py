@@ -323,9 +323,6 @@ class MetaVisualLearner(nn.Module):
         outputs = self.grouper(img, affinity_calculator, key, target_masks = target)
         return outputs
 
-    def segment(self, indices,  affinities):
-        masks, agents, alive, propmaps = self.grouper.compute_masks(affinities, indices)
-        return alive, masks
 
     def print_summary(self):
         summary_string = f"""
