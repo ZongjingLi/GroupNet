@@ -23,6 +23,7 @@ function setIdx() {
 function changeCurr() {
     document.getElementById("curr_idx").textContent = "current idx: " + idx;
 }
+function changeImg() {
     var img_bind = document.getElementById("im_vs_gt");
     var img_path = base_path + split +"/" + idx + "_img.png";
     img_bind.src = img_path //String.prototype.replace("/Users/melkor/Documents/datasets/TDWRoom/test/img/img_test_" + idx + ".png");
