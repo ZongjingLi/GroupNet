@@ -6,112 +6,70 @@
     <script type="text/javascript"
         src="http://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
     </script>
+    <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
-    <h1>MetaVisualConceptLearner</h1>
-    <div>
-        <div>
+    <div class="grid-container">
+        <div class="left-grid">
+            <h1>MetaVisualConceptLearner</h1>
             <div>
-                <input id = "name_input" value = "expr">
-                <button onclick = "setName()">set</button>
-            </div>
-            <div>
-                <input id = "idx_input" value = "0">
-                <button onclick = "setIdx()">confirm</button>
-                <a id = "overall_metric">overall metric</a>
-            </div>
-        </div>
-        <div>
-            <h3>Image Inputs v.s GT-Masks</h3>
-            <img src="outputs/demo_inputs.png" id = "im_vs_gt" width="256" height="256">
-            <img src="outputs/demo_inputs.png" id = "masks" width="256" height="256">
-            <div>
-                <button onclick="prev()">prev</button>
-                <a id = "curr_idx">Curr Idx:</a>
-                <button onclick="next()">next</button>
-                <div id = "curr_metric">current metric:</div>
-            </div>
-
-        </div>
-    </div>
-    <div>
-        <div>
-            <h3>Language as Grounding</h3>
-            <object id="query" data="outputs/logqa.txt" width="500" height="300"></object>
+                <div>
+                    <div>
+                        <input id = "name_input" value = "expr">
+                        <button onclick = "setName()">set</button>
+                    </div>
+                    <div>
+                        <input id = "idx_input" value = "0">
+                        <button onclick = "setIdx()">confirm</button>
+                        <a id = "overall_metric">overall metric</a>
+                    </div>
+                </div>
+                <div>
+                    <h3>Image Inputs v.s GT-Masks</h3>
+                    <img src="outputs/demo_inputs.png" id = "im_vs_gt" width="256" height="256">
+                    <img src="outputs/demo_inputs.png" id = "masks" width="256" height="256">
+                    <div>
+                        <button onclick="prev()">prev</button>
+                        <a id = "curr_idx">Curr Idx:</a>
+                        <button onclick="next()">next</button>
+                        <div id = "curr_metric">current metric:</div>
+                    </div>
         
+                </div>
+            </div>
+            <div>
+                <div>
+                    <h3>Language as Grounding</h3>
+                    <object id="query" data="outputs/logqa.txt" width="500" height="300"></object>
+                
+                </div>
+            </div>
+        </div>
+
+        <div class="right-grid">
+            <h1>KitchenDataset</h1>
+            <div>
+                <input id="choose-dataset-name" value = "TDWKitchen"> as Dataset
+                <button onclick="setDatasetName()">Choose</button>
+            </div>
+            <div id="choose-split">
+                <input id="choose-sample-split" value = "train"> as Split
+                <button onclick="setSampleSplit()">Choose</button>
+            </div>
+            <div>
+                <h3>GT-Img vs. Masks</h3>
+                <img src="outputs/demo_inputs.png" id = "gt-ims" width="256" height="256">
+                <img src="outputs/demo_inputs.png" id = "gt-ids" width="256" height="256">
+                <div>
+                    <button onclick="prevSample()">prev</button>
+                    <a id = "curr_sample_idx">Curr Idx:</a>
+                    <button onclick="nextSample()">next</button>
+                    <div id = "curr_metric">current metric:</div>
+                </div>
+            </div>
         </div>
     </div>
 
 </body>
-<script>
-    var root = "outputs/"; 
-    var idx = 0;
-    var split = "train"
-    var name_ = "expr"
-    var base_path = "outputs/" + name_ + "/"
-    function setName() {
-        name_ = document.getElementById("name_input").value;
-        console.log(name_)
-        changeData(); 
-    }
-    function setIdx() {
-        idx = document.getElementById("idx_input").value;
-        changeData();
-    }
-    function changeCurr() {
-        document.getElementById("curr_idx").textContent = "current idx: " + idx;
-    }
-    function changeImg() {
-        var img_bind = document.getElementById("im_vs_gt");
-        var img_path = base_path + split +"/" + idx + "_img.png";
-        img_bind.src = img_path //String.prototype.replace("/Users/melkor/Documents/datasets/TDWRoom/test/img/img_test_" + idx + ".png");
-
-        var mask_bind = document.getElementById("masks");
-        var mask_path = base_path + split +"/" + idx + "_mask.png";
-        mask_bind.src = mask_path
-    }
-    function changeQuery(json) {
-        var bind = document.getElementById("curr_metric")
-        bind.innerText = "Current IoU:"+json.iou;
-
-        bind = document.getElementById("query")
-        bind.innerHTML = "<div>"
-        for (i = 0; i < json.programs.length; i++) {
-            bind.innerHTML += "<div>query:"+json.queries[i]+"</div>"
-            bind.innerHTML += "<div>program:"+json.programs[i]+"</div>"
-            bind.innerHTML += "<div>answer:"+json.answers[i]+"</div>"
-            bind.innerHTML += "<div>gt_answer:"+json.gt_answers[i]+"</div><div>_____________________</div>"
-        }
-        bind.innerHTML += "</div>"
-    }
-    function changeOverall(json) {
-        var bind = document.getElementById("overall_metric")
-        bind.innerText = "Overall mIoU:"+json.miou + "Overall Acc:" + json.accuracy;
-    }
-    function changeData() {
-        base_path = "outputs/" + name_ + "/"
-        changeImg();
-        
-        json_path = base_path + split +"/" + idx + "_eval.json";
-        fetch(json_path)
-        .then((response) => response.json())
-        .then((json) => changeQuery(json));
-
-        overall_path = base_path + split +"/" + "overall.json";
-        fetch(overall_path)
-        .then((response) => response.json())
-        .then((json) => changeOverall(json));
-        changeCurr();
-    }
-    function next() {
-        idx = parseInt(idx) + 1;
-        changeData();
-    }
-    function prev() {
-        if (idx > 0) {
-            idx = parseInt(idx) - 1;
-        }
-        changeData();
-    }
-    changeData();
+<script src="assets/scripts.js">
 </script>

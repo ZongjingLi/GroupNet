@@ -28,3 +28,13 @@
     (color: red blue green not-any-color)
     (shape: square circle diamond not-any-shape)
 )
+
+(:action
+    (name: put
+    parameters: ?o1 ?o2 
+    precondition:
+        (exists ?o1)
+    effect :
+        (exists ?o1)
+    )
+)

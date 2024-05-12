@@ -28,7 +28,7 @@
 
     wooden ?x-shape -> boolean
     metal ?x-shape -> boolean
-    frabric ?x-shape -> boolean
+    rug ?x-shape -> boolean
     not-any-texture ?x-shape -> boolean
 
     big ?x-object -> boolean
