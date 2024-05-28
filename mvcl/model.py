@@ -13,8 +13,11 @@ from rinarak.dklearn.nn.mlp import FCBlock
 
 from typing import NamedTuple, List
 from .config import *
-from .custom import GeneralAffinityCalculator, SpatialProximityAffinityCalculator, SpelkeAffinityCalculator
+from .custom import GeneralAffinityCalculator, SpatialProximityAffinityCalculator, SpelkeAffinityCalculator, AlbedoAffinityCalculator
 from .percept.metanet import weighted_softmax
+
+
+#print(CentralExecutor)
 
 model_dict = {
     "MetaNet": MetaNet,
@@ -42,12 +45,12 @@ class MetaVisualLearner(nn.Module):
 
 
         # [Component Affinity Adapter]
-        max_component_num = 32
+        max_component_num = 12
         component_key_dim = 64 # the key-query dim of the component affinities, combine using the dot product
         feature_map_dim = 128 # the size of F_ij a.k.a each local feature dim, use this as the condition for the attention
         self.feature_map_dim = feature_map_dim
         """MLP as the encoder to encode the edge conditions"""
-        self.mlp_encoder = FCBlock(128, 2 ,feature_map_dim * 2, component_key_dim)
+        self.mlp_encoder = FCBlock(64, 2 ,feature_map_dim * 2, component_key_dim)
 
         """use embeddings to define the weights to calculate"""
         self.embeddings = nn.Embedding(max_component_num, component_key_dim)
@@ -76,7 +79,7 @@ class MetaVisualLearner(nn.Module):
     def toggle_component(self, name, freeze = True):
         self.affinities[name].requires_grad_(not freeze)
     
-    def toggle_component_except(self, name, freeze = True):
+    def toggle_component_except(self, name, freeze = False):
         for key in self.affinities:
             if name != key: self.affinities[key].requires_grad_(not freeze)
             else: self.affinities[key].requires_grad_(freeze)
@@ -90,7 +93,10 @@ class MetaVisualLearner(nn.Module):
     def add_affinities(self, affinity_names: List[str]):
         """set up general affinity calculators for each name, custom version not included"""
         for i,name in enumerate(affinity_names):
-            self.affinities[name] = GeneralAffinityCalculator(name)
+            if name == "albedo":
+                self.affinities[name] = AlbedoAffinityCalculator(name)
+            else:
+                self.affinities[name] = GeneralAffinityCalculator(name)
             self.affinity_indices[name] = i + len(self.affinity_indices)
             self.bias_predicter[name] = FCBlock(128, 2, self.feature_map_dim * 2, 1, activation= "nn.GELU()")
         
@@ -120,7 +126,7 @@ class MetaVisualLearner(nn.Module):
                                   working_resolution = (128,128),
                                   keys : List[str] = None,
                                   augument: dict = {},
-                                  verbose = False):
+                                  verbose = False, motion_mode = True):
         outputs = {}
         device = self.device
         B, C, W_, H_ = img.shape
@@ -170,12 +176,12 @@ class MetaVisualLearner(nn.Module):
         gather_embeds = F.normalize(gather_embeds, p=2, dim = -1)
         attn = torch.einsum("bnkd,bmd->bmnk", edge_conditions, gather_embeds)
         attn = torch.sigmoid((attn - self.gamma)/self.tau)
-        attn = torch.ones_like(attn)
+        #attn = torch.ones_like(attn, device = self.device)
         #attn = torch.softmax(attn * 5, dim = 1)
         
         if verbose:print("attn", list(attn.shape), float(attn.max()), float(attn.min()))
 
-        obj_affinity = torch.einsum("bmnk,bmnk->bnk", attn, gather_affinities - edge_bias * 0)
+        obj_affinity = torch.einsum("bmnk,bmnk->bnk", attn, gather_affinities - edge_bias)
         
         if verbose:print("attn", list(attn.shape), float(attn.max()), float(attn.min()))
 
@@ -184,13 +190,20 @@ class MetaVisualLearner(nn.Module):
 
         """step 3: (optional) calculate the loss if we have the ground truth object segments"""
         loss = {}
-        if targets is not None: loss["adapter_loss"] = self.calculate_object_adapter_loss(obj_affinity, indices, targets)
+        
+        if targets is not None:
+            if motion_mode:
+                for i, key in enumerate(self.affinities):
+                    if key == "spelke":
+                        loss["adapter_loss"] = self.calculate_object_adapter_loss(gather_affinities[:,i,:,:], indices, targets)
+            else:
+                loss["adapter_loss"] = self.calculate_object_adapter_loss(obj_affinity, indices, targets)
 
         """log all the outputs and return the value diction"""
         outputs["loss"] = loss
         outputs["attn"] = attn
         outputs["affinity"] = obj_affinity
-        outputs["component_affinity"] = {}
+        outputs["component_affinity"] = {"object": obj_affinity}
         for i, key in enumerate(self.affinities):
             outputs["component_affinity"][key] = gather_affinities[:,i,:,:]
         outputs["indices"] = indices
@@ -202,28 +215,43 @@ class MetaVisualLearner(nn.Module):
         indices = percept_outputs["indices"]
         component_affinity = percept_outputs["component_affinity"]
         component_affinity["object"] = obj_affinity
+        
+
 
         if alive is None and masks is None and features is None:
             predict_masks, _ ,alive, prop_maps = self.extract_segments(obj_affinity, indices)
             predict_masks = torch.einsum("bwhn,bnd->bwhn", predict_masks, alive)
             #features = torch.randn([predict_masks.shape[0], predict_masks.shape[-1], 100])
         else: predict_masks = masks
-        M = predict_masks.shape[-1]
+        
+        if isinstance(predict_masks,dict):
+            M = predict_masks["object"].shape[-1]
+        else:
+            M = predict_masks.shape[-1]
 
-        M = predict_masks.shape[-1]
         B, N, K = obj_affinity.shape
+        
+        
+        
         """iterate over batched programs and answer pairs"""
         query_loss = 0.0
         predict_answers = []
         numbers = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
         for batch_idx in range(len(programs[0])):
+            allocate_masks = {"object":predict_masks.reshape([B, N, M])[:, :, :]} if not isinstance(masks,dict) else masks
             context = {
-                0:{
                     "end": logit(alive.reshape([B,M])[batch_idx,:]),
                     "features": features[batch_idx,:,:],
-                    "masks": predict_masks.reshape([B, N, M])[batch_idx, :, :],
+                    "masks": allocate_masks,
                     "affinity": component_affinity,
-                    "executor": self.central_executor}
+                    "executor": self.central_executor,
+                    "indices": percept_outputs["indices"]
+            }
+            params = {
+                0:{
+                    "end": logit(alive.reshape([B,M])[batch_idx,:]),
+                    "context": context
+                }
             }
 
             query_loss = 0.0
@@ -231,16 +259,16 @@ class MetaVisualLearner(nn.Module):
             for query_idx in range(len(programs)):
                 program = programs[query_idx][batch_idx]
                 
-                results = self.central_executor.evaluate(program, context)
-
+                results = self.central_executor.evaluate(program, params)
                 gt_answer = answers[query_idx][batch_idx]
 
-                if gt_answer in ["yes", "no"]:
-                    #print(program, results["end"])
+                if gt_answer in ["yes", "no", "true"]:
                     if gt_answer == "yes":
                         query_loss +=  -1. * torch.log(results["end"].sigmoid())
-                    else:
+                    elif gt_answer == "no":
                          query_loss +=  -1. * torch.log( 1 - results["end"].sigmoid())
+                    if gt_answer == "true":
+                        query_loss = query_loss -  1. * results["end"].flatten()
                     batch_answers.append("yes" if results["end"] > 0. else "no")
                 elif gt_answer in numbers:
                     batch_answers.append(int(results["end"] + 0.5))
@@ -296,33 +324,6 @@ class MetaVisualLearner(nn.Module):
 
     def extract_segments(self, logits, indices):
         return self.grouper.compute_masks(logits, indices)
-    
-    def get_mapper(self,name : str):
-        for map_name in self.affinities:
-            if map_name == name: return self.affinities[map_name]
-        assert False, f"there is no such mapper {name}"
-    
-    def get_concept_embedding(self, name):return self.central_executor.get_concept_embedding(name)
-    
-    def entailment(self,c1, c2): 
-        """return the entailment probability of c1->c2.
-        """
-        if isinstance(c2, str):
-            parent_type = self.central_executor.get_type(c2)
-            values = self.central_executor.type_constraints[parent_type]
-            masks = []
-            for comp in values:
-                masks.append(self.central_executor.entailment(c1,self.get_concept_embedding(comp)).unsqueeze(-1))
-            masks = torch.cat(masks, dim = -1)
-            masks = F.normalize(masks.sigmoid(), dim = -1)
-            return logit(masks[:, :, values.index(c2)])
-        #return self.central_executor.entailment(c1,c2)
-    
-    def group_concepts(self, img, concept, key = None, target = None):
-        affinity_calculator = self.affinities[concept]
-        outputs = self.grouper(img, affinity_calculator, key, target_masks = target)
-        return outputs
-
 
     def print_summary(self):
         summary_string = f"""

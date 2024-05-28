@@ -1,0 +1,4 @@
+svg { background: #eee; }
+circle { stroke: black; stroke-width: 0.5px; }
+.draggable { cursor: grab; fill: hsl(0 50% 50%); }
+.dragging { cursor: grabbing; fill: hsl(200 50% 50%); }

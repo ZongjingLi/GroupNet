@@ -11,6 +11,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import numpy as np
 import matplotlib.pyplot as plt
+from rinarak.utils.os import load_json
 
 local = True
 dataset_dir = "/Users/melkor/Documents/datasets" if local else "datasets"
@@ -25,16 +26,17 @@ def identiy_masks(img):
     return
 
 class TDWRoomDataset(Dataset):
-    def __init__(self, split = "train", resolution = (128,128), root_dir = "datasets"):
+    def __init__(self,name="TDWRoom", split = "train", resolution = (128,128), root_dir = "datasets", motion_only = True):
         super().__init__()
         self.split = split
-        self.root_dir = root_dir + "/TDWRoom"
+        self.root_dir = root_dir + f"/{name}"
 
-        img_data_path = root_dir + "/TDWRoom"+ f"/{split}/img"
+        img_data_path = root_dir + f"/{name}"+ f"/{split}/img"
         self.files = os.listdir(img_data_path)
 
         """ add a working resolution to adapt different scenes and parameters"""
         self.transform = transforms.Resize(resolution)
+        self.motion_only = motion_only
     
     def __len__(self):
         return len(self.files) // 4
@@ -44,14 +46,27 @@ class TDWRoomDataset(Dataset):
         split = self.split
         img_data_path = root_dir + f"/{self.split}/img"
 
+        scene_data_path = root_dir + f"/{self.split}/scene/{idx}.json"
+        scene_setup = load_json(scene_data_path)
+
         data = {}
-        img = torch.tensor(plt.imread(img_data_path + f"/img_{split}_{idx}.png"))
-        albedo = torch.tensor(plt.imread(img_data_path + f"/albedo_{split}_{idx}.png"))
-        masks = np.load(img_data_path + f"/mask_{split}_{idx}.npy")
+        img = torch.tensor(plt.imread(img_data_path + f"/img_{idx}.png"))
+        albedo = torch.tensor(plt.imread(img_data_path + f"/albedo_{idx}.png"))
+        id_map = torch.tensor(plt.imread(img_data_path + f"/id_{idx}.png"))
+        masks = np.load(img_data_path + f"/mask_{idx}.npy")
+        ids_seq = np.load(root_dir + f"/{self.split}/scene/ids_{idx}.npy")
         #masks = torch.tensor(plt.imread(img_data_path + f"/id_{split}_{idx}.png"))
         
+        for i,id in enumerate(ids_seq):
+            #print( str(int(id)), scene_setup[str(int(id))]["model"], scene_setup[str(int(id))]["movable"])
+            if self.motion_only and not scene_setup[str(int(id))]["movable"]:
+                masks[torch.tensor(masks).int() == i] = 0
+
 
         data["img"] = self.transform(normal_img(img))
         data["albedo"] = self.transform(normal_img(albedo))
         data["masks"] =self.transform(torch.tensor(masks).unsqueeze(0)).squeeze(0)
+        data["ids"] = id_map
+        data["ids_sequence"] = ids_seq
+        data["scene"] = scene_setup
         return data

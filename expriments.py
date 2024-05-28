@@ -18,8 +18,10 @@ import os
 import sys
 from datetime import date
 
-from rinarak.utils.tensor import gather_loss
+from skimage import measure
+import numpy as np
 
+from rinarak.utils.tensor import gather_loss
 from mvcl.utils import gather_annotated_masks
 from mvcl.model import MetaVisualLearner
 from mvcl.config import config
@@ -181,6 +183,7 @@ def evaluate_metrics(model, dataset, name = "expr"):
         
         imgs = sample["img"]
         target_masks = sample["masks"]
+        B, W, H, _ = imgs.shape
         albedo_map = imgs
         auguments = {"annotated_masks":{"albedo": albedo_map}}
         predict_masks = model.predict_masks(imgs, augument = auguments)["masks"]
@@ -198,18 +201,44 @@ def evaluate_metrics(model, dataset, name = "expr"):
         }
         save_json(evaluate_data_bind, save_name + f"{itrs}_eval.json")
 
-        #plt.imshow()
         plt.imsave(save_name + f"{itrs}_img.png", np.array(imgs[0].cpu().detach().permute(1,2,0)))
+        
+
         plt.cla()
+        single_mask = torch.zeros([W,H])
+        cc_masks = to_cc_masks(predict_masks[0])
+        for i in range(cc_masks.shape[-1]):
+            single_mask[cc_masks[:,:,i]] = (i+1)
+        plt.imshow(single_mask.int())
         plt.axis("off")
-        plt.imshow(to_onehot_mask(predict_masks.cpu().detach())[0])
         plt.savefig(save_name + f"{itrs}_mask.png", bbox_inches = "tight")
+        #plt.cla()
+        #plt.axis("off")
+        #plt.imshow(to_onehot_mask(predict_masks.cpu().detach())[0])
+        #plt.savefig(save_name + f"{itrs}_mask.png", bbox_inches = "tight")
+
+        """segment connected components"""
+
         itrs += 1
 
     sys.stdout.write(f"\rmIoU:{float(sum(ious)/ len(ious))}")
     overall_data = {"miou":  float(sum(ious)/ len(ious)), "accuracy": sum(accurates)/len(accurates)}
     save_json(overall_data, save_name + "overall.json")
     return float(sum(ious)/ len(ious))
+
+
+
+def to_cc_masks(masks, threshold = 22):
+    all_masks = []
+    for i in range(masks.size(-1)):
+        #all_labels = measure.label(masks[:,:,i])
+        blobs_labels = measure.label(masks[:,:,i]>0.5, background=0)
+        for cc_label in range(1,blobs_labels.max()):
+            cc_mask = blobs_labels == cc_label
+            if cc_mask.sum() > threshold:
+                all_masks.append(cc_mask[...,None])
+    all_masks = np.concatenate(all_masks, axis = -1)
+    return all_masks
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--expr_type",                        default = "demo")
@@ -231,15 +260,21 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     if args.expr_type == "demo":
-        resolution = (64,64)
+        resolution = (128,128)
         config.resolution = resolution
         model = MetaVisualLearner(domain, config)
-        #model.load_state_dict(torch.load("MetaVisualConceptLearner/checkpoints/concept_expr.ckpt"))
+        
         model.clear_components()
-        model.add_spatial_affinity()
-        model.add_affinities(["albedo"])
+        #model.add_spatial_affinity()
+        model.add_affinities(["spelke"])
+        #model.add_affinities(["albedo"])
+        model.load_state_dict(torch.load("checkpoints/concept_expr_prox128.ckpt", map_location='cpu'))
+        #model.load_state_dict(torch.load("checkpoints/concept_expr_prox128.ckpt", map_location="cpu"))
+        #model.add_affinities(["albedo"])
         model = model.to(device)
-        dataset = TDWRoomDataset(resolution = resolution, root_dir = dataset_dir, split = "train")
+        name = "TDWRoom"
+        dataset = TDWRoomDataset(name=name,resolution = resolution, root_dir = dataset_dir, split = "train")
+        
         evaluate_metrics(model, dataset)
 
     if args.expr_type == "concept_demo":

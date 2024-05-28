@@ -14,7 +14,7 @@ class ResidualDenseConv(nn.Module):
         G  = growRate
         self.conv = nn.Sequential(*[
             nn.Conv2d(channel_in, G, kernel_size, padding=(kernel_size-1)//2, stride=1),
-            nn.ReLU()
+            nn.Tanh(),
         ])
 
     def forward(self, x):

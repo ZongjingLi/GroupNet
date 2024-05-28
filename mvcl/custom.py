@@ -17,15 +17,28 @@ from rinarak.utils.tensor import logit
 class AffinityCalculator(nn.Module, ABC):
     def __init__(self):
         super().__init__()
+
+    @abstractmethod
+    def gather_edge_features(self, features, indices):
+        """
+        Args:
+            features: feature maps of the shape BxWxHxD
+            indices: sparse tensor of the shape BxNxK (N=WxH)
+        Returns:
+            edge_features = gathered edge features
+        """
+        return
     
     @abstractmethod
-    def calculate_affinity_feature(self, indices, img, augument_feature = None):
-        """ take the img as input (optional augument feature) as output the joint feature of the affinities"""
-    
-    @abstractmethod
-    def calculate_entailment_logits(self, logits_features):
-        """ take the joint affinity feature as input and output the logits connectivity"""
-    
+    def calculate_affinity(self):
+        return
+
+class AttentionAffinityCalculator(AffinityCalculator):
+    def __init__(self):
+        super().__init__()
+
+    def calculate_affinity(self):
+        pass
 
 class GeneralAffinityCalculator(AffinityCalculator):
     def __init__(self, name : str):
@@ -89,7 +102,7 @@ class GeneralAffinityCalculator(AffinityCalculator):
         if "annotated_masks" in augument_features:
             #logits = logit(x_features == y_features, eps = 1e-6)
             logits = torch.sum( ((x_features - y_features) ** 2) , dim = -1)** 0.5
-            eps = 0.01
+            eps = 1.0
             #print(logits.max(), logits.min())
             inverse_div = 1 / ( eps + 17.2 * logits.reshape([B, N, K]) )
             #inverse_div = (logits < 0.1).float()
@@ -97,6 +110,52 @@ class GeneralAffinityCalculator(AffinityCalculator):
             #print(inverse_div.shape, inverse_div.max(), inverse_div.min())
         else:
             logits = (x_features * y_features).sum(dim = -1) * (D ** -0.5)
+        logits = logits.reshape([B, N, K])
+        return logits
+    
+class AlbedoAffinityCalculator(AffinityCalculator):
+    def __init__(self, name : str):
+        super().__init__()
+        self.name = name
+        latent_dim = 128
+        self.shadow_decoder = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 3, kernel_size=3, padding=1),
+        )
+        #self.shadow_decoder = nn.Linear(3,3)
+        self.beta = nn.Parameter(torch.tensor(4.))
+
+
+    def calculate_affinity_logits(self, indices, img, augument_features = None):
+        _, B, N, K = indices.shape
+        device = self.device
+
+        features = img.permute(0,2,3,1)
+        shadow = self.shadow_decoder(img).sigmoid().permute(0,2,3,1) * 0.1
+        features = features + shadow
+        D = features.shape[-1]
+        flatten = features.reshape(B,N,-1).to(device)
+        
+        x_indices = indices[[0,1],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D).to(device)
+        y_indices = indices[[0,2],...][-1].reshape([B,N*K]).unsqueeze(-1).repeat(1,1,D).to(device)
+
+        # gather image features and flatten them into 1dim features
+        x_features = torch.gather(flatten, dim = 1, index = x_indices).reshape([B, N, K, D])
+        y_features = torch.gather(flatten, dim = 1, index = y_indices).reshape([B, N, K, D])
+
+        B, N, K, D = x_features.shape
+        
+        x_features = x_features.reshape([B, N, K, D])
+        y_features = y_features.reshape([B, N, K, D])
+
+        logits = torch.sum( ((x_features - y_features) ** 2) , dim = -1)** 0.5
+        eps = 1.0
+
+        inverse_div = 1 / ( (0.1+torch.sigmoid(self.beta)) * 17 * logits.reshape([B, N, K]) )
+
+        logits = logit(inverse_div).clamp(-20,20.)
+        #print(shadow)
         logits = logits.reshape([B, N, K])
         return logits
 
@@ -146,7 +205,7 @@ class SpatialProximityAffinityCalculator(AffinityCalculator):
         eps = 0.1
         inv_diff = 1 / ( eps + 150 * logits.reshape([B, N, K]) )
         #inv_diff= logits.reshape([])
-        logits = logit(inv_diff)
+        logits = logit(inv_diff).clamp(-20,20.)
         #logits +=  torch.randn_like(logits) * 2.0
         return logits
 
@@ -234,35 +293,3 @@ class TextureAffinityFeatures(AffinityCalculator):
         super().__init__()
         assert input_dim % 2 == 0, "input dim should be divisible by 2 as it is a pair of patchs features"
 
-
-
-def build_demo_domain(model):
-    from .primitives import Primitive
-    model.implementations["universal"] = IdMap()#UnivseralMapper(4,132)
-    model.implementations["color"] = ColorMapper(4,model.config.object_dim)
-    model.implementations["shape"] = ShapeMapper(4,model.config.concept_dim)
-    # [Pre-define some concept mapper]
-    color = Primitive.GLOBALS["color"]
-    color.value = lambda x: {**x, "features": x["model"].get_mapper("color")(x["features"])}
-    shape = Primitive.GLOBALS["shape"]
-    shape.value = lambda x: {**x, "features": x["model"].get_mapper("shape")(x["features"])}
-    return model
-
-def build_line_demo_domain(model):
-    from .primitives import Primitive
-    model.implementations["universal"] = nn.Linear(1, 32)
-    model.implementations["color"] = nn.Linear(32, 1)
-    # [Pre-define some concept mappers]
-    color = Primitive.GLOBALS["color"]
-    color.value = lambda x: {**x, "features": x["model"].get_mapper("color")(x["features"])}
-    return model
-
-def build_meta_domain(model, config):
-    model.implementations["object"] = ObjectAffinityFeatures(config.channel_dim, 128)
-    return model
-
-def build_custom(model, config, domain_name):
-    print(config.resolution)
-    #if domain_name == "demo": return build_demo_domain(model)
-    #if domain_name == "line_demo": return build_line_demo_domain(model)
-    if domain_name == "MetaLearn": return build_meta_domain(model, config)

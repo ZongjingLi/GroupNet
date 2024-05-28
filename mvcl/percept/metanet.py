@@ -62,7 +62,7 @@ def local_to_sparse_global_affinity(local_adj, sample_inds, activated=None, spar
     Convert local adjacency matrix of shape [B, N, K] to [B, N, N]
     :param local_adj: [B, N, K]
     :param size: [H, W], with H * W = N
-    :return: global_adj [B, N, N]
+    :return: global_adj [B, N, N] 
     """
 
     B, N, K = list(local_adj.shape)
@@ -124,7 +124,7 @@ class MetaNet(nn.Module):
 
         """local indices plus long range indices"""
         supervision_level = 1
-        K = 7
+        K = 5
         self.K = K
          # the local window size ( window size of [n x n])
         self.supervision_level = supervision_level
@@ -139,9 +139,9 @@ class MetaNet(nn.Module):
         self.competition = Competition(num_masks = num_masks)
 
         kq_dim = 132
-        self.ks_map = nn.Linear(latent_dim, kq_dim)
-        self.qs_map = nn.Linear(latent_dim, kq_dim)
-        self.num_long_range = int(K**2 * 0.7)
+        #self.ks_map = nn.Linear(latent_dim, kq_dim)
+        #self.qs_map = nn.Linear(latent_dim, kq_dim)
+        self.num_long_range =100# int(K**2 * 1.0)
 
         #TODO: self.register_buffer() add a local buffer to store the universal data learned.
         if self.use_resnet:self.img_transform = transforms.Resize([W * 4,H * 4])

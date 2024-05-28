@@ -1,1 +1,1 @@
-{"iou": 0.22682154178619385, "queries": ["in the scene?", "is there any green object in the scene"], "programs": ["(scene $0)", "(exists (green $0))"], "answers": ["null", "yes"], "gt_answers": ["null", "yes"]}
+{"iou": 0.26429206132888794, "queries": ["in the scene?", "is there any green object in the scene"], "programs": ["(scene $0)", "(exists (green $0))"], "answers": ["null", "yes"], "gt_answers": ["null", "yes"]}

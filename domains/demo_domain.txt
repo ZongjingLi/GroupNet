@@ -7,6 +7,7 @@
 )
 (:predicate
     object ?x-img -> vector[float,100]
+    pos ?x-object -> vector[float,3]
 
     color ?x-object -> vector[float,100]
     shape ?x-object -> vector[float,100]
@@ -20,6 +21,8 @@
     circle ?x-shape -> boolean
     diamond ?x-shape -> boolean
     not-any-shape ?x-shape -> boolean
+
+    left ?x-object -> boolean
 )
 (:derived
     is-good ?x-color expr: (??f ?x)
@@ -30,11 +33,32 @@
 )
 
 (:action
+    (
+        name:  make_green
+        parameters: ?o1
+        precondition: (true)
+        effect: (
+            assign (green ?o1) true
+        )
+    )
     (name: put
-    parameters: ?o1 ?o2 
-    precondition:
-        (exists ?o1)
-    effect :
-        (exists ?o1)
+        parameters: ?o1 ?o2 
+        precondition:
+            ( exists ?o1 )
+        effect :
+            (if 
+                (exists ?o1)
+                (assign (red ?o1) (red ?o2))
+            )
+    )
+    (name: spreader
+        parameters: ?o1 ?o2 
+        precondition:
+            ( exists (green ?o1) )
+        effect :
+            (if 
+                true
+                (assign (red ?o2) (green ?o1))
+            )
     )
 )
