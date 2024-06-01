@@ -1,1 +1,0 @@
-/Users/melkor/miniforge3/envs/Melkor/bin/python main.py --mode="Scourge"

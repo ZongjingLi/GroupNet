@@ -1,4 +1,52 @@
-svg { background: #eee; }
-circle { stroke: black; stroke-width: 0.5px; }
-.draggable { cursor: grab; fill: hsl(0 50% 50%); }
-.dragging { cursor: grabbing; fill: hsl(200 50% 50%); }
+
+body {
+    background: #003b5b;
+}
+
+.grid-container {
+    display: grid;
+    grid-template-columns: auto auto auto auto;
+}
+
+h1 {
+    text-align: center;
+    color:rgb(10, 154, 206)
+}
+
+.container {
+    background: #eee;
+    height: 42em;
+    width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.movable {
+    font-family: sans-serif;
+    height:  10em;
+    width: 10em;
+    padding: 10px;
+
+    border: 1px solid #999;
+    border-radius: 3px;
+    background: #fff;
+    box-shadow: 0 1px 2px 1px rgb(0 0 0 /0.2)
+}
+
+.draggable {
+    background: rgb(10, 154, 206);
+    color: white;
+    border-radius: 3px;
+    margin-bottom: 10px;
+    padding: 3px 5px;
+    text-align: center;
+    cursor: grab;
+}
+
+.draggable:hover {
+    font-weight: bold;
+}
+
+.dragging {
+    cursor: grabbing;
+}

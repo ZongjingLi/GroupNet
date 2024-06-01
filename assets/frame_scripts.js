@@ -1,19 +1,19 @@
-const el = document.querySelector("svg circle");
+const el = document.querySelector(".draggable");
+const movableEl = el.parentNode;
 let state = {
-    eventToCoordinates: eventToSvgCoordinates,
-    dragging: null,
-    _pos: undefined,
-    get pos() {
-        return this._pos;
+    eventToCoordinates(event) { return {x: event.clientX, y: event.clientY}; },
+    dragging: false,
+    _pos: {x: 0, y: 0},
+    get pos() { return this._pos },
+    set pos(p) {
+        this._pos = p;
+        movableEl.style.transform = //*
+            `translate(${this._pos.x}px,${this._pos.y}px)`;
     },
-    set pos(p) { 
-        this._pos = {x: p.x, y: p.y};
-        el.setAttribute('cx', this._pos.x);
-        el.setAttribute('cy', this._pos.y);
-    },
-};
-state.pos = {x: 0, y: 0};
+}
+state.pos = {x: 850, y: 230};
 makeDraggable(state, el);
+function clamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
 
 function makeDraggable(state, el) {
     // from https://www.redblobgames.com/making-of/draggable/
@@ -23,11 +23,15 @@ function makeDraggable(state, el) {
         state.dragging = {dx: state.pos.x - x, dy: state.pos.y - y};
         el.classList.add('dragging');
         el.setPointerCapture(event.pointerId);
+        el.style.userSelect = 'none'; // if there's text
+        el.style.webkitUserSelect = 'none'; // safari
     }
 
     function end(_event) {
         state.dragging = null;
         el.classList.remove('dragging');
+        el.style.userSelect = ''; // if there's text
+        el.style.webkitUserSelect = ''; // safari
     }
 
     function move(event) {
@@ -41,13 +45,5 @@ function makeDraggable(state, el) {
     el.addEventListener('pointercancel', end);
     el.addEventListener('pointermove', move)
     el.addEventListener('touchstart', (e) => e.preventDefault());
-}
-
-function eventToSvgCoordinates(event, el=event.currentTarget) {
-    const svg = el.ownerSVGElement;
-    let p = svg.createSVGPoint();
-    p.x = event.clientX;
-    p.y = event.clientY;
-    p = p.matrixTransform(svg.getScreenCTM().inverse());
-    return p;
+    el.addEventListener('dragstart', (e) => e.preventDefault());
 }
