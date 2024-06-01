@@ -77,3 +77,13 @@ class InverseNormAffinity(AffinityConditionedAggregation):
                                       inv_mean_affinity[col])
         #affinity_thresh = torch.nn.functional.softplus(self.threholds).to(device)
         return edge_affinities.to(device), 0 * affinity_thresh , 0.0
+    
+class EcllipticalBoundary(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    
+class LinearBoundary(nn.Module):
+    def __init__(self):
+        super().__init__()
+        
