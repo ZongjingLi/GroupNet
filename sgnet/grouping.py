@@ -115,6 +115,10 @@ class SymbolicGrouper(nn.Module):
         self.affinity_modules = nn.ModuleDict()
         self.add_movable_affinity()
 
+        """global grouping modules"""
+        node_feat_size = 128
+        self.gcv = GraphConv(node_feat_size, node_feat_size)  
+
         """visual concept affinity adapter :: estimate the weights and thesholds of each affinity"""
         self.visual_concept_modules = nn.ModuleDict()
 
@@ -305,6 +309,10 @@ class SymbolicGrouper(nn.Module):
             masks[affinity_key] = aff_masks
         
         """integrate various component affinities and form the whole object affinity"""
+        #obj_affinity = None
+        #aff_masks, agents, alive, prop_maps = self.extract_segments(indices, obj_affinity.reshape([B, N, K]))
+
+        """global adjustments to form the part-whole hierarchy."""
 
 
         outputs = {
