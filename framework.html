@@ -1,0 +1,21 @@
+<head>
+    <link rel="stylesheet" href="assets/framework_styles.css">
+</head>
+<body>
+    <h1>Overall Frameworks</h1>
+    <div>
+        <div class="image-wrapper">
+            <img id="input-image" src="outputs/expr/val/1_img1.png" height="256" width="256">
+            <img id="motion-strength" src="outputs/expr/val/1_motion.png" height="256" width="256">
+        </div>
+        <button onclick="toggleNextFrame()">NextFrame</button>
+        <button onclick="toNextBatch()">NextBatch</button>
+        <button onclick="toPrevBatch()">PrevBatch</button>
+        
+        <div class="image-wrapper">
+            <img id="predict-mask" src="outputs/expr/val/1_predict_mask.png" height="256" width="256">
+        </div>
+    </div>
+</body>
+<script src="assets/framework_scripts.js">
+</script>

@@ -9,6 +9,22 @@
 import torch
 import torch.nn as nn
 
+from skimage import measure
+import numpy as np
+
+
+def to_cc_masks(masks, threshold = 22):
+    all_masks = []
+    for i in range(masks.size(-1)):
+        #all_labels = measure.label(masks[:,:,i])
+        blobs_labels = measure.label(masks[:,:,i]>0.1, background=0)
+        for cc_label in range(1,blobs_labels.max()):
+            cc_mask = blobs_labels == cc_label
+            if cc_mask.sum() > threshold:
+                all_masks.append(cc_mask[...,None])
+    all_masks = np.concatenate(all_masks, axis = -1)
+    return all_masks
+
 class SegmentationMetric:
     def __init__(self, 
                     metrics,

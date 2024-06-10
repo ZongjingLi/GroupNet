@@ -1,1 +1,1 @@
-/Users/melkor/miniforge3/envs/Melkor/bin/python main.py --save_name="demo_save" --load_checkpoint="/Users/melkor/Documents/GitHub/MetaVisualConceptLearner/outputs/refractor.pth"
+/Users/melkor/miniforge3/envs/Melkor/bin/python main.py --save_name="k7_save" --load_checkpoint="/Users/melkor/Documents/GitHub/MetaVisualConceptLearner/outputs/refractor.pth"

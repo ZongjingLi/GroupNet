@@ -66,7 +66,7 @@ domain = load_domain_string(meta_domain_str, domain_parser)
 
 resolution = args.resolution
 # [Make the Model]
-model = SymbolicGrouper(resolution = resolution, K = 5)
+model = SymbolicGrouper(resolution = resolution, K = 7)
 if args.load_checkpoint:
     model.load_state_dict(torch.load(args.load_checkpoint, map_location = args.device))
     print(f"succesfully load checkpoint from {args.load_checkpoint}")

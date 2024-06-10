@@ -1,1 +1,1 @@
-/Users/melkor/miniforge3/envs/Melkor/bin/python main.py --expr_type="eval" --save_name="demo_save" --load_checkpoint="/Users/melkor/Documents/GitHub/MetaVisualConceptLearner/outputs/refractor.pth"
+/Users/melkor/miniforge3/envs/Melkor/bin/python main.py --expr_type="eval" --save_name="state_save" --load_checkpoint="/Users/melkor/Documents/GitHub/MetaVisualConceptLearner/checkpoints_/k7_save.pth"

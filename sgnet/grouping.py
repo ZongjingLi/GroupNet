@@ -14,9 +14,6 @@ from torch_geometric.nn    import max_pool_x, GraphConv
 from torch_geometric.data  import Data,Batch
 from torch_geometric.utils import grid, to_dense_batch
 
-from skimage import measure
-import numpy as np
-
 from .backbones.resnet import ResidualDenseNetwork
 from .backbones.propagation import GraphPropagation
 from .backbones.competition import Competition
@@ -24,17 +21,6 @@ from .affinities import DotProductAffinity, InverseNormAffinity
 from rinarak.utils.tensor import logit
 
 
-def to_cc_masks(masks, threshold = 12):
-    all_masks = []
-    for i in range(masks.size(-1)):
-        #all_labels = measure.label(masks[:,:,i])
-        blobs_labels = measure.label(masks[:,:,i]>0.5, background=0)
-        for cc_label in range(1,blobs_labels.max()):
-            cc_mask = blobs_labels == cc_label
-            if cc_mask.sum() > threshold:
-                all_masks.append(cc_mask[...,None])
-    all_masks = np.concatenate(all_masks, axis = -1)
-    return all_masks
 
 def weighted_softmax(x, weight):
     maxes = torch.max(x, -1, keepdim=True)[0]
@@ -104,7 +90,7 @@ def local_to_sparse_global_affinity(local_adj, sample_inds, activated=None, spar
     return global_adj
 
 class SymbolicGrouper(nn.Module):
-    def __init__(self, resolution = (128,128), K = 7, long_range_ratio = 0.2):
+    def __init__(self, resolution = (128,128), K = 7, long_range_ratio = 0.15):
         super().__init__()
         device = "cuda" if torch.cuda.is_available() else "cpu"
         self.device = device
@@ -128,6 +114,9 @@ class SymbolicGrouper(nn.Module):
         """visual cue affinities for comprehensive understanding of the scene"""
         self.affinity_modules = nn.ModuleDict()
         self.add_movable_affinity()
+
+        """visual concept affinity adapter :: estimate the weights and thesholds of each affinity"""
+        self.visual_concept_modules = nn.ModuleDict()
 
         """extract segments from the affinity graph using the graph propagation and competition"""
         self.propagation = GraphPropagation(num_iters = 232)
@@ -159,7 +148,7 @@ class SymbolicGrouper(nn.Module):
             ], dim = 0)
         return indices
 
-    def extract_segments(self, indices, logits, prop_dim = 64):
+    def extract_segments(self, indices, logits, prop_dim = 128):
         W, H = self.W, self.H
         B, N, K = logits.shape
         D = prop_dim
@@ -208,6 +197,56 @@ class SymbolicGrouper(nn.Module):
         kl_div = F.kl_div(y_pred, y_true, reduction='none') * mask
         loss = kl_div.sum(-1)
         return loss, y_true
+
+    def indice_to_coords(self, indices, resolution = None):
+        B, N = indices.shape
+        if resolution is None: resolution = (self.W, self.H)
+        W, H = resolution
+        indices = indices.int()
+        x_val = (indices // H).unsqueeze(-1).float()
+        
+        y_val = (indices % W).unsqueeze(-1).float()
+
+        return torch.cat([x_val, y_val], dim = -1)
+
+    def coords_to_indice(self, coords, resolution = None):
+        B, N, _, _ = coords.shape
+        if resolution is None: resolution = (self.W, self.H)
+        W, H = resolution
+        return coords[:,:,0,:] * W + coords[:,:,1,:]
+
+
+    def boundary_restriction(self, from_indices, to_indices, affinity, boundary, L = 60):
+        """
+        Args:
+            indices:  BxK locations of the the affinity indices
+            affinity: BxK affinity indices both local and global
+            boundary: BxWxH boundary density at each location
+        Returns:
+            restricted affinity that does not cross boundary
+        """
+        # [sample_inds on the line]
+        W, H = self.W, self.H
+        B, K = from_indices.shape
+        from_indices = from_indices.reshape([B, K])
+        to_indices = to_indices.reshape([B, K])
+        from_coords = self.indice_to_coords(from_indices)
+        to_coords = self.indice_to_coords(to_indices)
+        offsets = to_coords - from_coords
+        offsets = offsets[..., None].repeat(1,1,1,L).float()
+        t_params = torch.linspace(0, 1, L).unsqueeze(0).unsqueeze(0).repeat(B, K, 1)
+        sample_inds = from_coords[..., None].repeat(1,1,1,L).float() + torch.einsum("bnds,bns->bnds", offsets, t_params)
+        sample_inds = self.coords_to_indice(sample_inds.long())
+
+        # [sum boundary density on these sample inds location ont he boundary density map]
+        boundary_density = boundary.reshape([B * W * H])
+        boundary_density = boundary_density[sample_inds]
+        reduction_density = boundary_density.sum(dim = -1)
+
+        # [reduce the affinity strength by the same amount]
+        B, N, K = affinity.shape
+        affinity = affinity  - reduction_density.reshape([B, N, K]) 
+        return affinity, sample_inds
 
     def forward(self, img, cues, verbose = False):
         """
@@ -264,6 +303,9 @@ class SymbolicGrouper(nn.Module):
             aff_masks, agents, alive, prop_maps = self.extract_segments(indices, affinity.reshape([B, N, K]))
             all_affinity[affinity_key] = affinity
             masks[affinity_key] = aff_masks
+        
+        """integrate various component affinities and form the whole object affinity"""
+
 
         outputs = {
             "loss": losses,

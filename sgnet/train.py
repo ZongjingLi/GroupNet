@@ -11,8 +11,27 @@ import torchvision.transforms as T
 from torch.utils.data import DataLoader
 from torchvision.models.optical_flow import raft_large, Raft_Large_Weights
 from torchvision.utils import flow_to_image
-from .utils import calculate_IoU_matrix, calculate_mIoU, expand_mask, to_onehot_mask
+from .utils import calculate_IoU_matrix, calculate_mIoU, expand_mask, to_onehot_mask, to_cc_masks
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+
+def save_masks(masks, name = "outputs/tmp.png"):
+    plt.figure("visualize mask")
+    plt.cla()
+    plt.axis("off")
+    comps = to_cc_masks(masks)
+    W, H, N = masks.shape
+    mask = torch.zeros([W, H])
+    for i in range(comps.shape[-1]):
+        mask[comps[:,:,i]] = i+1
+    plt.imshow(mask)
+    plt.savefig(name, bbox_inches='tight')
+
+def save_img(img, name = "outputs/save_img.png"):
+    plt.figure("save image")
+    plt.cla();plt.axis("off")
+    plt.imshow(img)
+    plt.savefig(name, bbox_inches = "tight")
 
 def preprocess(batch):
     transforms = T.Compose(
@@ -94,10 +113,12 @@ def evaluate(model, dataset, device = None):
     flow_predicter = flow_predicter.eval()
     
     num_samples = 0
+    batch_count = 0
     miou = []
     for sample in tqdm(loader):
         img1 = sample["img1"].to(device)
         img2 = sample["img2"].to(device)
+        batch_count += img1.shape[0]
         gt_masks = sample["masks"]
         num_samples += img1.shape[0] # add the batch number ot the total number of the samples iterated
 
@@ -114,10 +135,18 @@ def evaluate(model, dataset, device = None):
         }
             
         outputs = model(img1, cues, verbose = False)
-        predict_masks = outputs["masks"]["movable"]
+        #TODO: use the actual object mask to replace the movable object mask
+        predict_masks = outputs["masks"]["movable"] # calculate the predicted object mask
 
         sample_miou = calculate_mIoU(gt_masks.to("cpu"), predict_masks.to("cpu"))
-        miou.append(sample_miou.cpu().detach().numpy())    
+        miou.append(sample_miou.cpu().detach().numpy())
+        
+        # [save the batch-wise results on the predict mask and images]
+        save_masks(predict_masks[0],  f"outputs/expr/val/{batch_count}_predict_mask.png")
+        save_img(img1[0].permute(1,2,0),  f"outputs/expr/val/{batch_count}_img1.png")
+        save_img(img2[0].permute(1,2,0),  f"outputs/expr/val/{batch_count}_img2.png")
+        save_img(motion_strength[0].detach(), f"outputs/expr/val/{batch_count}_motion.png")
+
 
     sys.stdout.write(f"evaluation completed with miou : {sum(miou)/len(miou):.3f}")
 
