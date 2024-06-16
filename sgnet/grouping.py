@@ -19,7 +19,7 @@ from .backbones.propagation import GraphPropagation
 from .backbones.competition import Competition
 from .affinities import DotProductAffinity, InverseNormAffinity
 from rinarak.utils.tensor import logit
-
+import random
 
 
 def weighted_softmax(x, weight):
@@ -113,11 +113,14 @@ class SymbolicGrouper(nn.Module):
 
         """visual cue affinities for comprehensive understanding of the scene"""
         self.affinity_modules = nn.ModuleDict()
+        self.add_color_affinity()
         self.add_movable_affinity()
+        self.cues_activated = []
+        self.boundary_activated = []
 
         """global grouping modules"""
         node_feat_size = 128
-        self.gcv = GraphConv(node_feat_size, node_feat_size)  
+        #self.gcv = GraphConv(node_feat_size, node_feat_size)  
 
         """visual concept affinity adapter :: estimate the weights and thesholds of each affinity"""
         self.visual_concept_modules = nn.ModuleDict()
@@ -126,7 +129,18 @@ class SymbolicGrouper(nn.Module):
         self.propagation = GraphPropagation(num_iters = 232)
         self.competition = Competition(num_masks = 30)
     
-    def add_movable_affinity(self): self.affinity_modules["movable"] = DotProductAffinity()
+    def activate_all_cues(self):
+        [self.cues_activated.append(cue) for cue in self.affinity_modules]
+
+    def deactivate_cue(self, cue):
+        while cue in self.cues_activated: self.cues_activated.remove(cue)
+    
+    def activate_cue(self, cue):
+        self.cues_activated.append(cue)
+
+    def add_color_affinity(self): self.affinity_modules["movable"] = DotProductAffinity()
+    
+    def add_movable_affinity(self): self.affinity_modules["color"] = InverseNormAffinity()#DotProductAffinity()
 
     def preprocess(self, img):
         if img.shape[1] > 4: return img.permute(0,2,3,1)
@@ -252,7 +266,7 @@ class SymbolicGrouper(nn.Module):
         affinity = affinity  - reduction_density.reshape([B, N, K]) 
         return affinity, sample_inds
 
-    def forward(self, img, cues, verbose = False):
+    def forward(self, img, cues, boundary = None, verbose = False):
         """
         Args:
             img: a batch of image in the shape BxCxWxH
@@ -268,8 +282,9 @@ class SymbolicGrouper(nn.Module):
                   self.spatial_coords.unsqueeze(0).repeat(im_feats.size(0),1,1),
                   im_feats.flatten(2,3).permute(0,2,1)
                                           ],dim=2)
-        coords_added_im_feats = im_feats
+        #coords_added_im_feats = im_feats
         coords_added_im_feats = torch.nn.functional.normalize(coords_added_im_feats, dim = -1)
+        #coords_added_im_feats = img
         
         coords_added_im_feats = im_feats.flatten(2,3).permute(0,2,1)
         if verbose: print(coords_added_im_feats.shape)
@@ -290,7 +305,9 @@ class SymbolicGrouper(nn.Module):
         losses = {}
         all_affinity = {}
         masks = {}
-        for affinity_key in self.affinity_modules:
+        relative_weights = []
+        relative_affinity = []
+        for i,affinity_key in enumerate(self.affinity_modules):
             affinity_aggregator = self.affinity_modules[affinity_key]
             affinity, threshold, loss = affinity_aggregator(x, edge_index, batch, x.device)
             losses[affinity_key] = loss
@@ -307,10 +324,32 @@ class SymbolicGrouper(nn.Module):
             aff_masks, agents, alive, prop_maps = self.extract_segments(indices, affinity.reshape([B, N, K]))
             all_affinity[affinity_key] = affinity
             masks[affinity_key] = aff_masks
-        
+
+
+            """dynamically allocate the relative weights"""
+            weights = torch.ones_like(affinity).unsqueeze(0) 
+            if affinity_key in self.cues_activated:
+                weights = weights * -1.
+            relative_weights.append(weights)
+            relative_affinity.append(affinity.unsqueeze(0))
+            #relative_affinity.append(torch.ones_like(affinity.unsqueeze(0)))
+
+            # [calculate the relative weight over the various objects]
+
+        relative_weights = torch.cat(relative_weights, dim = 0) #[BxK]
+        #relative_weights = torch.softmax(relative_weights, dim = 0)
+
+        relative_affinity = torch.cat(relative_affinity, dim = 0) #[BxK]
+
         """integrate various component affinities and form the whole object affinity"""
-        #obj_affinity = None
-        #aff_masks, agents, alive, prop_maps = self.extract_segments(indices, obj_affinity.reshape([B, N, K]))
+        obj_affinity = torch.einsum("ck,ck-> k", relative_weights, relative_affinity).reshape([B, N, K])
+        # [restriction from the external boundary]
+        if boundary is not None:
+            obj_affinity, boundary_inds = self.boundary_restriction(\
+                from_indices[:,0,:], to_indices[:,0,:], obj_affinity, boundary)
+
+        obj_masks, agents, alive, prop_maps = self.extract_segments(indices, obj_affinity)
+        masks["objects"] = obj_masks
 
         """global adjustments to form the part-whole hierarchy."""
 
