@@ -65,18 +65,17 @@ class InverseNormAffinity(AffinityConditionedAggregation):
     def affinities_and_thresholds(self, nodes, row, col):
         device = nodes.device
         n, d = nodes.shape
-        eps = 0.01
+        eps = 0.5
         # Norm of difference for every node pair on grid
         edge_affinities = torch.linalg.norm(nodes[row] - nodes[col],dim = 1) # this is for the difference version
         edge_affinities = 1 / (edge_affinities + eps)
-        edge_affinities = logit(edge_affinities)
 
         # Inverse mean affinities for each node to threshold each edge with
         inv_mean_affinity = scatter_mean(edge_affinities, row.to(nodes.device))
         affinity_thresh   = torch.min(inv_mean_affinity[row],
                                       inv_mean_affinity[col])
         #affinity_thresh = torch.nn.functional.softplus(self.threholds).to(device)
-        return edge_affinities.to(device), .1 * affinity_thresh , 0.0
+        return edge_affinities.to(device), 1.0 * affinity_thresh , 0.0
     
 class EcllipticalBoundary(nn.Module):
     def __init__(self):

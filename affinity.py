@@ -14,7 +14,7 @@ import torchvision
 resolution = (128, 128)
 dataset = PlagueWorksDataset(split = "train", resolution = resolution, dataset_dir = "/Users/melkor/Documents/datasets")
 def resample():
-    loader = DataLoader(dataset, batch_size = 1, shuffle = False)
+    loader = DataLoader(dataset, batch_size = 1, shuffle = 0)
     for sample in loader:break
     return sample
 
@@ -53,7 +53,7 @@ gray_scale = np.uint8(gray_scale)
 edges = cv.Canny(gray_scale,100,200)
 
 boundary = None
-#boundary = torch.tensor(edges).unsqueeze(0) /255.
+boundary = torch.tensor(edges).unsqueeze(0) /255.
 
 
 from sgnet.grouping import SymbolicGrouper
