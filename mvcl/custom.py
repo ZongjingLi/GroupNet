@@ -179,7 +179,7 @@ class ObjectAffinityFeatures(AffinityCalculator):
         self.ks_map = nn.Linear(latent_dim, kq_dim)
         self.qs_map = nn.Linear(latent_dim, kq_dim)
 
-    def calculate_affinity_feature(self, indices, img, augument_feature = None):
+    def calculate_affinity_feature(self, indices, img):
         _, B, N, K = indices.shape
 
         conv_features = self.backbone(img)
@@ -233,7 +233,6 @@ class TextureAffinityFeatures(AffinityCalculator):
     def __init__(self,input_dim, output_dim):
         super().__init__()
         assert input_dim % 2 == 0, "input dim should be divisible by 2 as it is a pair of patchs features"
-
 
 
 def build_demo_domain(model):
